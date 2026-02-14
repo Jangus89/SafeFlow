@@ -1,0 +1,11 @@
+full_name,first_name,last_name,email,phone_whatsapp,status,roles,permission_level,can_approve_quotes,approval_limit,can_close_work_items,can_create_work_items,unit_number,trade_skills,certifications,preferred_language,whatsapp_opted_in
+"James Whitfield","James","Whitfield","j.whitfield@meridianpm.co.uk","+447700100001",ACTIVE,"PROPERTY_MANAGER,SUPERVISOR",ELEVATED,TRUE,10000.00,TRUE,TRUE,"","","",en,TRUE
+"Sarah Chen","Sarah","Chen","s.chen@meridianpm.co.uk","+447700100002",ACTIVE,"PROPERTY_MANAGER",STANDARD,TRUE,5000.00,TRUE,TRUE,"","","",en,TRUE
+"Dave Morrison","Dave","Morrison","d.morrison@meridianpm.co.uk","+447700100003",ACTIVE,"ENGINEER",STANDARD,FALSE,0.00,FALSE,TRUE,"","PLUMBING,GENERAL_MAINTENANCE","GAS_SAFE,CSCS",en,TRUE
+"Maria Kowalska","Maria","Kowalska","","+447700100004",ACTIVE,"TENANT",BASIC,FALSE,0.00,FALSE,FALSE,"Flat 4","","",pl,TRUE
+"Ahmed Hassan","Ahmed","Hassan","","+447700100005",ACTIVE,"TENANT",BASIC,FALSE,0.00,FALSE,FALSE,"Flat 7","","",en,TRUE
+"Priya Patel","Priya","Patel","p.patel@thechnicalservices.co.uk","+447700100006",ACTIVE,"ENGINEER",STANDARD,FALSE,0.00,FALSE,TRUE,"","ELECTRICAL,FIRE_SYSTEMS","NICEIC,FIRST_AID",en,TRUE
+"Tom Bradley","Tom","Bradley","tom@aquaflowplumbing.co.uk","+447700100007",ACTIVE,"CONTRACTOR_CONTACT",BASIC,FALSE,0.00,FALSE,FALSE,"","","",en,TRUE
+"Fatima Al-Rashid","Fatima","Al-Rashid","","+447700100008",ACTIVE,"TENANT",BASIC,FALSE,0.00,FALSE,FALSE,"Unit 3","","",en,TRUE
+"Robert McAllister","Robert","McAllister","r.mcallister@caledoniaworks.co.uk","+447700100009",ACTIVE,"PROPERTY_MANAGER,ADMIN",ADMIN,TRUE,50000.00,TRUE,TRUE,"","","",en,TRUE
+"Elena Rodriguez","Elena","Rodriguez","","+447700100010",ACTIVE,"TENANT",BASIC,FALSE,0.00,FALSE,FALSE,"Flat 12","","",es,TRUE

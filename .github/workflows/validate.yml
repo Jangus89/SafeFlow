@@ -43,34 +43,39 @@ jobs:
       - name: Install dependencies
         run: pip install jsonschema
 
-      - name: Validate schema structure
+      - name: Validate schema with custom validator
+        run: python airtable/schema/validate_schema.py --strict
+
+      - name: Validate schema against meta-schema
+        run: |
+          python3 -c "
+          import json, jsonschema
+
+          with open('airtable/schema/schema.json') as f:
+              schema = json.load(f)
+          with open('airtable/schema/meta-schema.json') as f:
+              meta = json.load(f)
+
+          jsonschema.validate(schema, meta)
+          print('Meta-schema validation passed')
+          "
+
+      - name: Validate migration files
         run: |
           python3 -c "
           import json, sys
+          from pathlib import Path
 
-          with open('airtable/schemas/base-schema.json') as f:
-              schema = json.load(f)
-
-          required_tables = [
-              'Tenants', 'Properties', 'Maintenance Requests',
-              'Contractors', 'Conversations', 'Message Log', 'Error Log'
-          ]
-
-          errors = []
-          for table in required_tables:
-              if table not in schema.get('tables', {}):
-                  errors.append(f'Missing table: {table}')
-              else:
-                  fields = schema['tables'][table].get('fields', [])
-                  if not fields:
-                      errors.append(f'Table {table} has no fields')
-
+          errors = 0
+          for f in sorted(Path('airtable/migrations').glob('[0-9]*.json')):
+              data = json.load(open(f))
+              for key in ['migration_id', 'version', 'changes', 'rollback']:
+                  if key not in data:
+                      print(f'ERROR: {f.name} missing {key}')
+                      errors += 1
           if errors:
-              for e in errors:
-                  print(f'ERROR: {e}')
               sys.exit(1)
-
-          print(f'Schema valid: {len(required_tables)} tables verified')
+          print('All migration files valid')
           "
 
   run-tests:
@@ -89,6 +94,9 @@ jobs:
 
       - name: Run webhook tests
         run: pytest tests/webhooks/ -v
+
+      - name: Run schema validation tests
+        run: pytest tests/schema/ -v
 
       - name: Run prompt structure tests
         run: pytest tests/prompts/ -v -m "not live"

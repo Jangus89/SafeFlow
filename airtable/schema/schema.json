@@ -1,0 +1,1844 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "version": "1.0.0",
+  "last_updated": "2026-02-14T10:00:00Z",
+  "updated_by": "system@safeflow.co.nz",
+  "base_name": "SafeFlow Facilities Management",
+  "base_id": "appXXXXXXXXXXXXXX",
+  "environment": "production",
+
+  "tables": [
+    {
+      "name": "Work_Items",
+      "table_id": "tblWorkItems",
+      "description": "Core jobs/work orders tracking facility maintenance requests",
+      "primary_field": "job_reference",
+      "icon": "wrench",
+      "color": "blue",
+
+      "fields": [
+        {
+          "name": "job_reference",
+          "field_id": "fldJobRef",
+          "type": "formula",
+          "options": {
+            "formula": "CONCATENATE('WO-', RECORD_ID())"
+          },
+          "description": "Auto-generated unique job reference (e.g., WO-recABC123)",
+          "required": true,
+          "readonly": true,
+          "examples": ["WO-rec123ABC", "WO-rec456DEF"]
+        },
+        {
+          "name": "current_state",
+          "field_id": "fldState",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "INTAKE", "color": "grayLight"},
+              {"name": "CLARIFICATION", "color": "yellowLight"},
+              {"name": "ASSESSMENT", "color": "orangeLight"},
+              {"name": "ASSIGNED_INTERNAL", "color": "blueLight"},
+              {"name": "RFQ_SENT", "color": "purpleLight"},
+              {"name": "QUOTES_RECEIVED", "color": "purpleDark"},
+              {"name": "QUOTE_ACCEPTED", "color": "purpleDark"},
+              {"name": "IN_PROGRESS_INTERNAL", "color": "tealLight"},
+              {"name": "IN_PROGRESS_EXTERNAL", "color": "tealDark"},
+              {"name": "VERIFICATION", "color": "greenLight"},
+              {"name": "PAYMENT_PENDING", "color": "pinkLight"},
+              {"name": "CLOSED", "color": "greenDark"}
+            ]
+          },
+          "default": "INTAKE",
+          "description": "Current state in the work order lifecycle",
+          "required": true,
+          "validation": {
+            "allowed_values": ["INTAKE", "CLARIFICATION", "ASSESSMENT", "ASSIGNED_INTERNAL", "RFQ_SENT", "QUOTES_RECEIVED", "QUOTE_ACCEPTED", "IN_PROGRESS_INTERNAL", "IN_PROGRESS_EXTERNAL", "VERIFICATION", "PAYMENT_PENDING", "CLOSED"]
+          }
+        },
+        {
+          "name": "state_started_at",
+          "field_id": "fldStateStarted",
+          "type": "dateTime",
+          "options": {
+            "dateFormat": {"name": "european", "format": "DD/MM/YYYY"},
+            "timeFormat": {"name": "24hour", "format": "HH:mm"},
+            "timeZone": "Pacific/Auckland"
+          },
+          "description": "When the current state began (used for SLA calculations)",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "state_history",
+          "field_id": "fldStateHistory",
+          "type": "multilineText",
+          "description": "JSON array of all state transitions with timestamps, actors, and reasons",
+          "validation": {
+            "must_be_valid_json": true,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "from": {"type": "string"},
+                  "to": {"type": "string"},
+                  "at": {"type": "string", "format": "date-time"},
+                  "by": {"type": "string"},
+                  "interaction_log_id": {"type": "string"},
+                  "reason": {"type": "string"}
+                },
+                "required": ["from", "to", "at", "by"]
+              }
+            }
+          },
+          "examples": [
+            "[{\"from\":\"INTAKE\",\"to\":\"ASSESSMENT\",\"at\":\"2026-02-14T10:30:00Z\",\"by\":\"+6421000001\",\"reason\":\"LLM classified as plumbing\"}]"
+          ]
+        },
+        {
+          "name": "state_locked",
+          "field_id": "fldStateLocked",
+          "type": "checkbox",
+          "default": false,
+          "description": "Prevents concurrent state modifications (mutex lock)",
+          "required": true,
+          "indexed": true
+        },
+        {
+          "name": "site_id",
+          "field_id": "fldSite",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblSites",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true,
+            "inverseLinkFieldId": "fldSiteWorkItems"
+          },
+          "description": "Property/building where the issue is located",
+          "required": true,
+          "validation": {
+            "must_link_exactly_one": true
+          }
+        },
+        {
+          "name": "reporter_phone",
+          "field_id": "fldReporterPhone",
+          "type": "phoneNumber",
+          "description": "WhatsApp phone number of the person who reported the issue",
+          "required": true,
+          "validation": {
+            "format": "E.164",
+            "regex": "^\\+[1-9]\\d{1,14}$"
+          },
+          "examples": ["+64211234567", "+64221234567"]
+        },
+        {
+          "name": "reporter_contact_id",
+          "field_id": "fldReporterContact",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblContacts",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true,
+            "inverseLinkFieldId": "fldContactWorkItems"
+          },
+          "description": "Link to the contact record for the reporter"
+        },
+        {
+          "name": "issue_description",
+          "field_id": "fldIssueDesc",
+          "type": "multilineText",
+          "description": "Original issue description from the reporter (unmodified)",
+          "required": true
+        },
+        {
+          "name": "llm_extracted_data",
+          "field_id": "fldLLMData",
+          "type": "multilineText",
+          "description": "Structured JSON data extracted by Claude API intake triage",
+          "validation": {
+            "must_be_valid_json": true,
+            "schema": {
+              "type": "object",
+              "properties": {
+                "category": {"type": "string"},
+                "urgency": {"type": "string"},
+                "location_in_property": {"type": "string"},
+                "description_summary": {"type": "string"},
+                "access_instructions": {"type": ["string", "null"]},
+                "confidence": {"type": "number", "minimum": 0, "maximum": 1}
+              }
+            }
+          }
+        },
+        {
+          "name": "discipline_required",
+          "field_id": "fldDiscipline",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "PLUMBING", "color": "blueLight"},
+              {"name": "ELECTRICAL", "color": "yellowLight"},
+              {"name": "HVAC", "color": "orangeLight"},
+              {"name": "GAS_SAFE", "color": "redLight"},
+              {"name": "LIFT_ENGINEER", "color": "purpleLight"},
+              {"name": "FIRE_SAFETY", "color": "redDark"},
+              {"name": "GENERAL_MAINTENANCE", "color": "grayLight"},
+              {"name": "SPECIALIST", "color": "grayDark"}
+            ]
+          },
+          "description": "Trade discipline required to complete the work"
+        },
+        {
+          "name": "urgency",
+          "field_id": "fldUrgency",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "EMERGENCY", "color": "redDark"},
+              {"name": "URGENT", "color": "redLight"},
+              {"name": "HIGH", "color": "orangeLight"},
+              {"name": "MEDIUM", "color": "yellowLight"},
+              {"name": "LOW", "color": "grayLight"}
+            ]
+          },
+          "description": "Urgency level affecting SLA timers and escalation speed",
+          "required": true,
+          "validation": {
+            "allowed_values": ["EMERGENCY", "URGENT", "HIGH", "MEDIUM", "LOW"]
+          }
+        },
+        {
+          "name": "sla_target_hours",
+          "field_id": "fldSLATarget",
+          "type": "formula",
+          "options": {
+            "formula": "IF(urgency='EMERGENCY',4,IF(urgency='URGENT',8,IF(urgency='HIGH',24,IF(urgency='MEDIUM',72,168))))"
+          },
+          "description": "Auto-calculated SLA target in hours based on urgency",
+          "readonly": true
+        },
+        {
+          "name": "sla_breached",
+          "field_id": "fldSLABreached",
+          "type": "formula",
+          "options": {
+            "formula": "IF(AND(current_state!='CLOSED',current_state!='VERIFICATION'),IF(DATETIME_DIFF(NOW(),{Created},'hours')>{sla_target_hours},'YES','NO'),'')"
+          },
+          "description": "Whether the SLA has been breached",
+          "readonly": true
+        },
+        {
+          "name": "assigned_contractor_id",
+          "field_id": "fldAssignedContractor",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblContractors",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true,
+            "inverseLinkFieldId": "fldContractorWorkItems"
+          },
+          "description": "External contractor assigned to this work item"
+        },
+        {
+          "name": "assigned_team_member_id",
+          "field_id": "fldAssignedTeam",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblTeamMembers",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true,
+            "inverseLinkFieldId": "fldTeamWorkItems"
+          },
+          "description": "Internal team member assigned to this work item"
+        },
+        {
+          "name": "photos",
+          "field_id": "fldPhotos",
+          "type": "multipleAttachments",
+          "description": "Photos of the issue, uploaded via WhatsApp"
+        },
+        {
+          "name": "quoted_amount",
+          "field_id": "fldQuotedAmount",
+          "type": "currency",
+          "options": {"symbol": "$", "precision": 2},
+          "description": "Accepted quote amount (NZD)"
+        },
+        {
+          "name": "final_cost",
+          "field_id": "fldFinalCost",
+          "type": "currency",
+          "options": {"symbol": "$", "precision": 2},
+          "description": "Final invoiced cost (NZD)"
+        },
+        {
+          "name": "xero_invoice_id",
+          "field_id": "fldXeroInvoice",
+          "type": "singleLineText",
+          "description": "Xero invoice UUID for cross-reference"
+        },
+        {
+          "name": "xero_invoice_number",
+          "field_id": "fldXeroInvNum",
+          "type": "singleLineText",
+          "description": "Human-readable Xero invoice number"
+        },
+        {
+          "name": "xero_payment_status",
+          "field_id": "fldXeroPayStatus",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "NOT_INVOICED", "color": "grayLight"},
+              {"name": "DRAFT", "color": "yellowLight"},
+              {"name": "AWAITING_PAYMENT", "color": "orangeLight"},
+              {"name": "PAID", "color": "greenDark"},
+              {"name": "VOIDED", "color": "redLight"}
+            ]
+          },
+          "default": "NOT_INVOICED",
+          "description": "Payment lifecycle state synced from Xero"
+        },
+        {
+          "name": "escalation_level",
+          "field_id": "fldEscLevel",
+          "type": "number",
+          "options": {"precision": 0},
+          "default": 0,
+          "description": "Current escalation level (0=none, 1-4=escalated)",
+          "validation": {
+            "minimum": 0,
+            "maximum": 4
+          }
+        },
+        {
+          "name": "next_escalation_at",
+          "field_id": "fldNextEsc",
+          "type": "dateTime",
+          "description": "When the next auto-escalation will trigger"
+        },
+        {
+          "name": "resolution_notes",
+          "field_id": "fldResNotes",
+          "type": "multilineText",
+          "description": "Notes on how the issue was resolved"
+        },
+        {
+          "name": "tenant_satisfaction",
+          "field_id": "fldSatisfaction",
+          "type": "rating",
+          "options": {"max": 5, "color": "yellowBright"},
+          "description": "Post-resolution tenant satisfaction rating"
+        },
+        {
+          "name": "interaction_log",
+          "field_id": "fldInteractions",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblInteractionLog",
+            "relationship": "one-to-many",
+            "inverseLinkFieldId": "fldLogWorkItem"
+          },
+          "description": "All WhatsApp interactions related to this work item"
+        },
+        {
+          "name": "Created",
+          "field_id": "fldCreated",
+          "type": "dateTime",
+          "auto": true,
+          "description": "Record creation timestamp"
+        },
+        {
+          "name": "Last_Modified",
+          "field_id": "fldModified",
+          "type": "dateTime",
+          "auto": true,
+          "description": "Last modification timestamp"
+        },
+        {
+          "name": "time_to_resolve_hours",
+          "field_id": "fldTTR",
+          "type": "formula",
+          "options": {
+            "formula": "IF(current_state='CLOSED',DATETIME_DIFF({Last_Modified},{Created},'hours'),'')"
+          },
+          "description": "Hours from creation to closure",
+          "readonly": true
+        }
+      ],
+
+      "views": [
+        {
+          "name": "Active Work Orders",
+          "type": "grid",
+          "filter": "AND({current_state}!='CLOSED',{current_state}!='VERIFICATION')",
+          "sort": [
+            {"field": "urgency", "direction": "asc"},
+            {"field": "Created", "direction": "asc"}
+          ],
+          "description": "Default operational view"
+        },
+        {
+          "name": "Kanban Board",
+          "type": "kanban",
+          "group_by": "current_state",
+          "description": "Visual workflow board"
+        },
+        {
+          "name": "SLA Breaches",
+          "type": "grid",
+          "filter": "{sla_breached}='YES'",
+          "sort": [{"field": "Created", "direction": "asc"}],
+          "description": "Work orders that have exceeded their SLA target"
+        },
+        {
+          "name": "Awaiting Payment",
+          "type": "grid",
+          "filter": "{current_state}='PAYMENT_PENDING'",
+          "description": "Completed work awaiting Xero payment"
+        },
+        {
+          "name": "Emergency Queue",
+          "type": "grid",
+          "filter": "AND({urgency}='EMERGENCY',{current_state}!='CLOSED')",
+          "description": "Active emergency work orders"
+        },
+        {
+          "name": "By Site",
+          "type": "grid",
+          "group_by": "site_id",
+          "description": "Work orders grouped by property"
+        },
+        {
+          "name": "Completed This Week",
+          "type": "grid",
+          "filter": "AND({current_state}='CLOSED',IS_AFTER({Last_Modified},DATEADD(TODAY(),-7,'days')))",
+          "description": "Recently closed work orders"
+        }
+      ]
+    },
+
+    {
+      "name": "Sites",
+      "table_id": "tblSites",
+      "description": "Properties, buildings, and managed sites",
+      "primary_field": "site_name",
+      "icon": "building",
+      "color": "teal",
+
+      "fields": [
+        {
+          "name": "site_name",
+          "field_id": "fldSiteName",
+          "type": "singleLineText",
+          "required": true,
+          "description": "Human-readable property name"
+        },
+        {
+          "name": "site_code",
+          "field_id": "fldSiteCode",
+          "type": "singleLineText",
+          "required": true,
+          "description": "Short unique identifier (e.g., WLG-01, AKL-KROAD-5)",
+          "validation": {
+            "unique": true,
+            "regex": "^[A-Z0-9-]+$"
+          }
+        },
+        {
+          "name": "address_line_1",
+          "field_id": "fldAddr1",
+          "type": "singleLineText",
+          "required": true
+        },
+        {
+          "name": "address_line_2",
+          "field_id": "fldAddr2",
+          "type": "singleLineText"
+        },
+        {
+          "name": "city",
+          "field_id": "fldCity",
+          "type": "singleLineText",
+          "required": true
+        },
+        {
+          "name": "postcode",
+          "field_id": "fldPostcode",
+          "type": "singleLineText"
+        },
+        {
+          "name": "site_type",
+          "field_id": "fldSiteType",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "RESIDENTIAL_HOUSE", "color": "greenLight"},
+              {"name": "RESIDENTIAL_APARTMENT", "color": "greenDark"},
+              {"name": "COMMERCIAL_OFFICE", "color": "blueLight"},
+              {"name": "COMMERCIAL_RETAIL", "color": "blueDark"},
+              {"name": "MIXED_USE", "color": "purpleLight"},
+              {"name": "INDUSTRIAL", "color": "grayDark"}
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "total_units",
+          "field_id": "fldTotalUnits",
+          "type": "number",
+          "options": {"precision": 0},
+          "description": "Number of units/tenancies at this site"
+        },
+        {
+          "name": "owner_name",
+          "field_id": "fldOwnerName",
+          "type": "singleLineText",
+          "required": true
+        },
+        {
+          "name": "owner_phone",
+          "field_id": "fldOwnerPhone",
+          "type": "phoneNumber"
+        },
+        {
+          "name": "owner_email",
+          "field_id": "fldOwnerEmail",
+          "type": "email"
+        },
+        {
+          "name": "xero_contact_id",
+          "field_id": "fldXeroContact",
+          "type": "singleLineText",
+          "description": "Xero contact UUID for the property owner"
+        },
+        {
+          "name": "assigned_manager_id",
+          "field_id": "fldManager",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblTeamMembers",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true,
+            "inverseLinkFieldId": "fldManagedSites"
+          },
+          "required": true
+        },
+        {
+          "name": "work_items",
+          "field_id": "fldSiteWorkItems",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "relationship": "one-to-many",
+            "inverseLinkFieldId": "fldSite"
+          },
+          "description": "All work orders for this site"
+        },
+        {
+          "name": "contacts",
+          "field_id": "fldSiteContacts",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblContacts",
+            "relationship": "one-to-many",
+            "inverseLinkFieldId": "fldContactSite"
+          },
+          "description": "All contacts (tenants) at this site"
+        },
+        {
+          "name": "active_work_items_count",
+          "field_id": "fldActiveCount",
+          "type": "rollup",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "rollupField": "current_state",
+            "formula": "COUNTALL(values,'CLOSED')"
+          },
+          "description": "Count of non-closed work items (inverted — subtract from total)",
+          "readonly": true
+        },
+        {
+          "name": "access_instructions",
+          "field_id": "fldAccess",
+          "type": "multilineText",
+          "description": "How to access the property (key safe, entry codes, etc.)"
+        },
+        {
+          "name": "key_safe_code",
+          "field_id": "fldKeySafe",
+          "type": "singleLineText",
+          "description": "SENSITIVE: Key safe code. Restrict field-level permissions.",
+          "sensitive": true
+        },
+        {
+          "name": "notes",
+          "field_id": "fldSiteNotes",
+          "type": "multilineText"
+        },
+        {
+          "name": "status",
+          "field_id": "fldSiteStatus",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "ACTIVE", "color": "greenDark"},
+              {"name": "ONBOARDING", "color": "yellowLight"},
+              {"name": "OFFBOARDING", "color": "orangeLight"},
+              {"name": "INACTIVE", "color": "grayLight"}
+            ]
+          },
+          "default": "ACTIVE",
+          "required": true
+        }
+      ],
+
+      "views": [
+        {
+          "name": "All Active Sites",
+          "type": "grid",
+          "filter": "{status}='ACTIVE'",
+          "sort": [{"field": "site_name", "direction": "asc"}]
+        },
+        {
+          "name": "By Manager",
+          "type": "grid",
+          "group_by": "assigned_manager_id"
+        },
+        {
+          "name": "Sites with Open Issues",
+          "type": "grid",
+          "filter": "{active_work_items_count}>0"
+        }
+      ]
+    },
+
+    {
+      "name": "Contacts",
+      "table_id": "tblContacts",
+      "description": "Tenants and other contacts who interact via WhatsApp",
+      "primary_field": "display_name",
+      "icon": "user",
+      "color": "green",
+
+      "fields": [
+        {
+          "name": "display_name",
+          "field_id": "fldDisplayName",
+          "type": "singleLineText",
+          "required": true
+        },
+        {
+          "name": "whatsapp_phone",
+          "field_id": "fldWAPhone",
+          "type": "phoneNumber",
+          "required": true,
+          "description": "Primary WhatsApp number in E.164 format",
+          "validation": {
+            "unique": true,
+            "format": "E.164",
+            "regex": "^\\+[1-9]\\d{1,14}$"
+          }
+        },
+        {
+          "name": "email",
+          "field_id": "fldEmail",
+          "type": "email"
+        },
+        {
+          "name": "contact_type",
+          "field_id": "fldContactType",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "TENANT", "color": "greenLight"},
+              {"name": "OWNER", "color": "blueLight"},
+              {"name": "CONTRACTOR_CONTACT", "color": "orangeLight"},
+              {"name": "AGENT", "color": "purpleLight"},
+              {"name": "OTHER", "color": "grayLight"}
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "site_id",
+          "field_id": "fldContactSite",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblSites",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true,
+            "inverseLinkFieldId": "fldSiteContacts"
+          },
+          "description": "Property this contact is associated with"
+        },
+        {
+          "name": "unit_number",
+          "field_id": "fldUnit",
+          "type": "singleLineText",
+          "description": "Unit/flat number within the site"
+        },
+        {
+          "name": "lease_start",
+          "field_id": "fldLeaseStart",
+          "type": "date",
+          "options": {"dateFormat": {"name": "european", "format": "DD/MM/YYYY"}}
+        },
+        {
+          "name": "lease_end",
+          "field_id": "fldLeaseEnd",
+          "type": "date",
+          "options": {"dateFormat": {"name": "european", "format": "DD/MM/YYYY"}}
+        },
+        {
+          "name": "status",
+          "field_id": "fldContactStatus",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "ACTIVE", "color": "greenDark"},
+              {"name": "NOTICE_GIVEN", "color": "orangeLight"},
+              {"name": "PAST", "color": "grayLight"},
+              {"name": "BLOCKED", "color": "redDark"}
+            ]
+          },
+          "default": "ACTIVE",
+          "required": true
+        },
+        {
+          "name": "preferred_language",
+          "field_id": "fldLang",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "en", "color": "blueLight"},
+              {"name": "mi", "color": "greenLight"},
+              {"name": "zh", "color": "redLight"},
+              {"name": "hi", "color": "orangeLight"}
+            ]
+          },
+          "default": "en"
+        },
+        {
+          "name": "emergency_contact_name",
+          "field_id": "fldEmergName",
+          "type": "singleLineText"
+        },
+        {
+          "name": "emergency_contact_phone",
+          "field_id": "fldEmergPhone",
+          "type": "phoneNumber"
+        },
+        {
+          "name": "work_items",
+          "field_id": "fldContactWorkItems",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "relationship": "one-to-many",
+            "inverseLinkFieldId": "fldReporterContact"
+          }
+        },
+        {
+          "name": "conversation_state",
+          "field_id": "fldConvState",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "IDLE", "color": "grayLight"},
+              {"name": "ACTIVE", "color": "greenLight"},
+              {"name": "AWAITING_INPUT", "color": "yellowLight"},
+              {"name": "ESCALATED", "color": "redLight"}
+            ]
+          },
+          "default": "IDLE",
+          "description": "Current conversation state for this contact"
+        },
+        {
+          "name": "active_work_item_id",
+          "field_id": "fldActiveWI",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true
+          },
+          "description": "The work item currently being discussed in conversation"
+        },
+        {
+          "name": "last_message_at",
+          "field_id": "fldLastMsg",
+          "type": "dateTime",
+          "description": "Timestamp of last WhatsApp interaction"
+        },
+        {
+          "name": "total_interactions",
+          "field_id": "fldTotalInt",
+          "type": "count",
+          "options": {"linkedField": "fldContactInteractions"},
+          "readonly": true
+        },
+        {
+          "name": "registered_at",
+          "field_id": "fldRegistered",
+          "type": "dateTime",
+          "auto": true
+        },
+        {
+          "name": "notes",
+          "field_id": "fldContactNotes",
+          "type": "multilineText"
+        }
+      ],
+
+      "views": [
+        {
+          "name": "All Active Contacts",
+          "type": "grid",
+          "filter": "{status}='ACTIVE'",
+          "sort": [{"field": "display_name", "direction": "asc"}]
+        },
+        {
+          "name": "By Site",
+          "type": "grid",
+          "group_by": "site_id"
+        },
+        {
+          "name": "Active Conversations",
+          "type": "grid",
+          "filter": "OR({conversation_state}='ACTIVE',{conversation_state}='AWAITING_INPUT')"
+        }
+      ]
+    },
+
+    {
+      "name": "Contractors",
+      "table_id": "tblContractors",
+      "description": "Approved external contractors and tradespeople",
+      "primary_field": "company_name",
+      "icon": "hammer",
+      "color": "orange",
+
+      "fields": [
+        {
+          "name": "company_name",
+          "field_id": "fldCompanyName",
+          "type": "singleLineText",
+          "required": true
+        },
+        {
+          "name": "contact_person",
+          "field_id": "fldContactPerson",
+          "type": "singleLineText",
+          "required": true
+        },
+        {
+          "name": "phone",
+          "field_id": "fldContractorPhone",
+          "type": "phoneNumber",
+          "required": true
+        },
+        {
+          "name": "email",
+          "field_id": "fldContractorEmail",
+          "type": "email",
+          "required": true
+        },
+        {
+          "name": "disciplines",
+          "field_id": "fldDisciplines",
+          "type": "multipleSelects",
+          "options": {
+            "choices": [
+              {"name": "PLUMBING", "color": "blueLight"},
+              {"name": "ELECTRICAL", "color": "yellowLight"},
+              {"name": "HVAC", "color": "orangeLight"},
+              {"name": "GAS_SAFE", "color": "redLight"},
+              {"name": "LIFT_ENGINEER", "color": "purpleLight"},
+              {"name": "FIRE_SAFETY", "color": "redDark"},
+              {"name": "GENERAL_MAINTENANCE", "color": "grayLight"},
+              {"name": "SPECIALIST", "color": "grayDark"}
+            ]
+          },
+          "required": true,
+          "description": "Trade disciplines this contractor can service"
+        },
+        {
+          "name": "availability",
+          "field_id": "fldAvailability",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "AVAILABLE", "color": "greenDark"},
+              {"name": "BUSY", "color": "yellowLight"},
+              {"name": "ON_LEAVE", "color": "orangeLight"},
+              {"name": "INACTIVE", "color": "grayLight"}
+            ]
+          },
+          "default": "AVAILABLE"
+        },
+        {
+          "name": "emergency_available",
+          "field_id": "fldEmergAvail",
+          "type": "checkbox",
+          "default": false,
+          "description": "Available for out-of-hours emergency callouts"
+        },
+        {
+          "name": "hourly_rate",
+          "field_id": "fldHourlyRate",
+          "type": "currency",
+          "options": {"symbol": "$", "precision": 2}
+        },
+        {
+          "name": "callout_fee",
+          "field_id": "fldCalloutFee",
+          "type": "currency",
+          "options": {"symbol": "$", "precision": 2}
+        },
+        {
+          "name": "rating",
+          "field_id": "fldRating",
+          "type": "rating",
+          "options": {"max": 5, "color": "yellowBright"}
+        },
+        {
+          "name": "xero_contact_id",
+          "field_id": "fldContXeroId",
+          "type": "singleLineText"
+        },
+        {
+          "name": "insurance_expiry",
+          "field_id": "fldInsExpiry",
+          "type": "date",
+          "options": {"dateFormat": {"name": "european", "format": "DD/MM/YYYY"}},
+          "description": "Public liability insurance expiry"
+        },
+        {
+          "name": "insurance_valid",
+          "field_id": "fldInsValid",
+          "type": "formula",
+          "options": {
+            "formula": "IF({insurance_expiry},IF(IS_AFTER({insurance_expiry},TODAY()),'VALID','EXPIRED'),'UNKNOWN')"
+          },
+          "readonly": true
+        },
+        {
+          "name": "work_items",
+          "field_id": "fldContractorWorkItems",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "relationship": "one-to-many",
+            "inverseLinkFieldId": "fldAssignedContractor"
+          }
+        },
+        {
+          "name": "completed_jobs_count",
+          "field_id": "fldCompletedCount",
+          "type": "rollup",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "rollupField": "current_state",
+            "formula": "COUNTALL(values,'CLOSED')"
+          },
+          "readonly": true
+        },
+        {
+          "name": "status",
+          "field_id": "fldContStatus",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "APPROVED", "color": "greenDark"},
+              {"name": "PENDING_APPROVAL", "color": "yellowLight"},
+              {"name": "SUSPENDED", "color": "redLight"},
+              {"name": "REMOVED", "color": "grayLight"}
+            ]
+          },
+          "default": "PENDING_APPROVAL"
+        },
+        {
+          "name": "notes",
+          "field_id": "fldContNotes",
+          "type": "multilineText"
+        }
+      ],
+
+      "views": [
+        {
+          "name": "Approved & Available",
+          "type": "grid",
+          "filter": "AND({status}='APPROVED',{availability}='AVAILABLE')"
+        },
+        {
+          "name": "By Discipline",
+          "type": "grid",
+          "group_by": "disciplines"
+        },
+        {
+          "name": "Emergency Roster",
+          "type": "grid",
+          "filter": "AND({status}='APPROVED',{availability}='AVAILABLE',{emergency_available}=TRUE())"
+        },
+        {
+          "name": "Insurance Expiring",
+          "type": "grid",
+          "filter": "OR({insurance_valid}='EXPIRED',IS_BEFORE({insurance_expiry},DATEADD(TODAY(),30,'days')))"
+        }
+      ]
+    },
+
+    {
+      "name": "Team_Members",
+      "table_id": "tblTeamMembers",
+      "description": "Internal property management team members",
+      "primary_field": "name",
+      "icon": "users",
+      "color": "purple",
+
+      "fields": [
+        {
+          "name": "name",
+          "field_id": "fldTeamName",
+          "type": "singleLineText",
+          "required": true
+        },
+        {
+          "name": "role",
+          "field_id": "fldRole",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "PROPERTY_MANAGER", "color": "blueLight"},
+              {"name": "SENIOR_MANAGER", "color": "purpleLight"},
+              {"name": "DIRECTOR", "color": "purpleDark"},
+              {"name": "ADMIN", "color": "grayLight"}
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "phone",
+          "field_id": "fldTeamPhone",
+          "type": "phoneNumber",
+          "required": true
+        },
+        {
+          "name": "email",
+          "field_id": "fldTeamEmail",
+          "type": "email",
+          "required": true
+        },
+        {
+          "name": "escalation_tier",
+          "field_id": "fldEscTier",
+          "type": "number",
+          "options": {"precision": 0},
+          "description": "Escalation tier: 1=first responder, 2=manager, 3=senior, 4=director",
+          "validation": {"minimum": 1, "maximum": 4}
+        },
+        {
+          "name": "managed_sites",
+          "field_id": "fldManagedSites",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblSites",
+            "relationship": "one-to-many",
+            "inverseLinkFieldId": "fldManager"
+          }
+        },
+        {
+          "name": "work_items",
+          "field_id": "fldTeamWorkItems",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "relationship": "one-to-many",
+            "inverseLinkFieldId": "fldAssignedTeam"
+          }
+        },
+        {
+          "name": "is_active",
+          "field_id": "fldIsActive",
+          "type": "checkbox",
+          "default": true
+        },
+        {
+          "name": "is_on_call",
+          "field_id": "fldOnCall",
+          "type": "checkbox",
+          "default": false,
+          "description": "Currently on call for emergency escalations"
+        }
+      ],
+
+      "views": [
+        {
+          "name": "Active Team",
+          "type": "grid",
+          "filter": "{is_active}=TRUE()",
+          "sort": [{"field": "escalation_tier", "direction": "asc"}]
+        },
+        {
+          "name": "On Call",
+          "type": "grid",
+          "filter": "AND({is_active}=TRUE(),{is_on_call}=TRUE())"
+        }
+      ]
+    },
+
+    {
+      "name": "Interaction_Log",
+      "table_id": "tblInteractionLog",
+      "description": "Complete audit trail of all WhatsApp interactions",
+      "primary_field": "interaction_id",
+      "icon": "chat",
+      "color": "cyan",
+
+      "fields": [
+        {
+          "name": "interaction_id",
+          "field_id": "fldIntId",
+          "type": "formula",
+          "options": {
+            "formula": "CONCATENATE('INT-', RECORD_ID())"
+          },
+          "readonly": true
+        },
+        {
+          "name": "work_item_id",
+          "field_id": "fldLogWorkItem",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true,
+            "inverseLinkFieldId": "fldInteractions"
+          }
+        },
+        {
+          "name": "contact_phone",
+          "field_id": "fldIntPhone",
+          "type": "phoneNumber",
+          "required": true
+        },
+        {
+          "name": "direction",
+          "field_id": "fldDirection",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "INBOUND", "color": "blueLight"},
+              {"name": "OUTBOUND", "color": "greenLight"},
+              {"name": "SYSTEM", "color": "grayLight"}
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "channel",
+          "field_id": "fldChannel",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "WHATSAPP", "color": "greenDark"},
+              {"name": "EMAIL", "color": "blueLight"},
+              {"name": "PHONE", "color": "grayLight"},
+              {"name": "INTERNAL", "color": "purpleLight"}
+            ]
+          },
+          "default": "WHATSAPP"
+        },
+        {
+          "name": "message_content",
+          "field_id": "fldMsgContent",
+          "type": "multilineText",
+          "description": "Raw message content"
+        },
+        {
+          "name": "message_type",
+          "field_id": "fldMsgType",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "TEXT", "color": "blueLight"},
+              {"name": "IMAGE", "color": "greenLight"},
+              {"name": "TEMPLATE", "color": "purpleLight"},
+              {"name": "INTERACTIVE_REPLY", "color": "orangeLight"},
+              {"name": "LOCATION", "color": "tealLight"},
+              {"name": "DOCUMENT", "color": "grayLight"}
+            ]
+          }
+        },
+        {
+          "name": "whatsapp_message_id",
+          "field_id": "fldWAMsgId",
+          "type": "singleLineText",
+          "description": "360dialog/WhatsApp message ID for dedup and status tracking",
+          "validation": {"unique": true}
+        },
+        {
+          "name": "llm_classification",
+          "field_id": "fldLLMClass",
+          "type": "multilineText",
+          "description": "JSON classification result from Claude API",
+          "validation": {"must_be_valid_json": true}
+        },
+        {
+          "name": "llm_confidence",
+          "field_id": "fldLLMConf",
+          "type": "percent",
+          "options": {"precision": 0}
+        },
+        {
+          "name": "llm_model",
+          "field_id": "fldLLMModel",
+          "type": "singleLineText"
+        },
+        {
+          "name": "llm_tokens_used",
+          "field_id": "fldLLMTokens",
+          "type": "number",
+          "options": {"precision": 0}
+        },
+        {
+          "name": "llm_latency_ms",
+          "field_id": "fldLLMLatency",
+          "type": "number",
+          "options": {"precision": 0}
+        },
+        {
+          "name": "make_scenario_name",
+          "field_id": "fldMakeScenario",
+          "type": "singleLineText"
+        },
+        {
+          "name": "make_execution_id",
+          "field_id": "fldMakeExecId",
+          "type": "singleLineText",
+          "description": "Make.com execution ID for debugging"
+        },
+        {
+          "name": "delivery_status",
+          "field_id": "fldDelivStatus",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "SENT", "color": "blueLight"},
+              {"name": "DELIVERED", "color": "greenLight"},
+              {"name": "READ", "color": "greenDark"},
+              {"name": "FAILED", "color": "redDark"},
+              {"name": "N/A", "color": "grayLight"}
+            ]
+          },
+          "description": "WhatsApp delivery status for outbound messages"
+        },
+        {
+          "name": "error_details",
+          "field_id": "fldErrorDetails",
+          "type": "multilineText",
+          "description": "Error info if message processing or delivery failed"
+        },
+        {
+          "name": "timestamp",
+          "field_id": "fldIntTimestamp",
+          "type": "dateTime",
+          "auto": true
+        },
+        {
+          "name": "processing_time_ms",
+          "field_id": "fldProcTime",
+          "type": "number",
+          "options": {"precision": 0},
+          "description": "End-to-end processing time in milliseconds"
+        }
+      ],
+
+      "views": [
+        {
+          "name": "Recent (100)",
+          "type": "grid",
+          "sort": [{"field": "timestamp", "direction": "desc"}],
+          "limit": 100
+        },
+        {
+          "name": "Failed Deliveries",
+          "type": "grid",
+          "filter": "{delivery_status}='FAILED'"
+        },
+        {
+          "name": "Low Confidence Classifications",
+          "type": "grid",
+          "filter": "AND({llm_confidence}<70,{llm_confidence}>0)",
+          "description": "Review these for prompt improvement opportunities"
+        },
+        {
+          "name": "By Work Item",
+          "type": "grid",
+          "group_by": "work_item_id"
+        }
+      ]
+    },
+
+    {
+      "name": "Escalation_Log",
+      "table_id": "tblEscalationLog",
+      "description": "Audit trail of all escalation events",
+      "primary_field": "escalation_id",
+      "icon": "alert",
+      "color": "red",
+
+      "fields": [
+        {
+          "name": "escalation_id",
+          "field_id": "fldEscId",
+          "type": "formula",
+          "options": {"formula": "CONCATENATE('ESC-', RECORD_ID())"},
+          "readonly": true
+        },
+        {
+          "name": "work_item_id",
+          "field_id": "fldEscWorkItem",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true
+          },
+          "required": true
+        },
+        {
+          "name": "from_tier",
+          "field_id": "fldFromTier",
+          "type": "number",
+          "options": {"precision": 0},
+          "required": true
+        },
+        {
+          "name": "to_tier",
+          "field_id": "fldToTier",
+          "type": "number",
+          "options": {"precision": 0},
+          "required": true
+        },
+        {
+          "name": "notified_person",
+          "field_id": "fldNotified",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblTeamMembers",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true
+          }
+        },
+        {
+          "name": "notification_method",
+          "field_id": "fldNotifMethod",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "WHATSAPP", "color": "greenDark"},
+              {"name": "EMAIL", "color": "blueLight"},
+              {"name": "WHATSAPP_AND_EMAIL", "color": "purpleLight"},
+              {"name": "ALL_CHANNELS", "color": "redLight"}
+            ]
+          }
+        },
+        {
+          "name": "trigger_reason",
+          "field_id": "fldTrigger",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "SLA_BREACH", "color": "redLight"},
+              {"name": "SCHEDULED_CHECK", "color": "orangeLight"},
+              {"name": "MANUAL", "color": "blueLight"},
+              {"name": "TENANT_REQUEST", "color": "greenLight"}
+            ]
+          }
+        },
+        {
+          "name": "acknowledged",
+          "field_id": "fldAcknowledged",
+          "type": "checkbox",
+          "default": false
+        },
+        {
+          "name": "acknowledged_at",
+          "field_id": "fldAckAt",
+          "type": "dateTime"
+        },
+        {
+          "name": "response_time_minutes",
+          "field_id": "fldRespTime",
+          "type": "formula",
+          "options": {
+            "formula": "IF({acknowledged_at},DATETIME_DIFF({acknowledged_at},{timestamp},'minutes'),'')"
+          },
+          "readonly": true
+        },
+        {
+          "name": "timestamp",
+          "field_id": "fldEscTimestamp",
+          "type": "dateTime",
+          "auto": true
+        }
+      ],
+
+      "views": [
+        {
+          "name": "Unacknowledged",
+          "type": "grid",
+          "filter": "{acknowledged}!=TRUE()",
+          "sort": [{"field": "timestamp", "direction": "desc"}]
+        },
+        {
+          "name": "By Work Item",
+          "type": "grid",
+          "group_by": "work_item_id"
+        }
+      ]
+    },
+
+    {
+      "name": "Error_Log",
+      "table_id": "tblErrorLog",
+      "description": "System errors for monitoring and debugging",
+      "primary_field": "error_id",
+      "icon": "warning",
+      "color": "red",
+
+      "fields": [
+        {
+          "name": "error_id",
+          "field_id": "fldErrId",
+          "type": "formula",
+          "options": {"formula": "CONCATENATE('ERR-', RECORD_ID())"},
+          "readonly": true
+        },
+        {
+          "name": "severity",
+          "field_id": "fldSeverity",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "CRITICAL", "color": "redDark"},
+              {"name": "ERROR", "color": "redLight"},
+              {"name": "WARNING", "color": "yellowLight"},
+              {"name": "INFO", "color": "blueLight"}
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "source_scenario",
+          "field_id": "fldSourceScenario",
+          "type": "singleLineText"
+        },
+        {
+          "name": "source_module",
+          "field_id": "fldSourceModule",
+          "type": "singleLineText"
+        },
+        {
+          "name": "make_execution_id",
+          "field_id": "fldErrExecId",
+          "type": "singleLineText"
+        },
+        {
+          "name": "error_message",
+          "field_id": "fldErrMsg",
+          "type": "multilineText",
+          "required": true
+        },
+        {
+          "name": "error_payload",
+          "field_id": "fldErrPayload",
+          "type": "multilineText",
+          "description": "Sanitized payload (no PII) for debugging"
+        },
+        {
+          "name": "related_work_item",
+          "field_id": "fldErrWorkItem",
+          "type": "multipleRecordLinks",
+          "options": {
+            "linkedTableId": "tblWorkItems",
+            "relationship": "many-to-one",
+            "prefersSingleRecordLink": true
+          }
+        },
+        {
+          "name": "related_contact_phone",
+          "field_id": "fldErrPhone",
+          "type": "singleLineText",
+          "description": "Phone number involved (for correlation, not PII storage)"
+        },
+        {
+          "name": "resolved",
+          "field_id": "fldResolved",
+          "type": "checkbox",
+          "default": false
+        },
+        {
+          "name": "resolution_notes",
+          "field_id": "fldErrResNotes",
+          "type": "multilineText"
+        },
+        {
+          "name": "resolved_by",
+          "field_id": "fldResolvedBy",
+          "type": "singleLineText"
+        },
+        {
+          "name": "resolved_at",
+          "field_id": "fldResolvedAt",
+          "type": "dateTime"
+        },
+        {
+          "name": "timestamp",
+          "field_id": "fldErrTimestamp",
+          "type": "dateTime",
+          "auto": true
+        }
+      ],
+
+      "views": [
+        {
+          "name": "Unresolved",
+          "type": "grid",
+          "filter": "{resolved}!=TRUE()",
+          "sort": [{"field": "severity", "direction": "asc"}, {"field": "timestamp", "direction": "desc"}]
+        },
+        {
+          "name": "Critical & Errors",
+          "type": "grid",
+          "filter": "OR({severity}='CRITICAL',{severity}='ERROR')"
+        },
+        {
+          "name": "Last 24 Hours",
+          "type": "grid",
+          "filter": "IS_AFTER({timestamp},DATEADD(NOW(),-24,'hours'))"
+        },
+        {
+          "name": "By Scenario",
+          "type": "grid",
+          "group_by": "source_scenario"
+        }
+      ]
+    },
+
+    {
+      "name": "WhatsApp_Templates",
+      "table_id": "tblWATemplates",
+      "description": "Registry of approved WhatsApp Business message templates",
+      "primary_field": "template_name",
+      "icon": "page",
+      "color": "green",
+
+      "fields": [
+        {
+          "name": "template_name",
+          "field_id": "fldTplName",
+          "type": "singleLineText",
+          "required": true,
+          "validation": {"unique": true, "regex": "^[a-z_]+$"}
+        },
+        {
+          "name": "category",
+          "field_id": "fldTplCat",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "UTILITY", "color": "blueLight"},
+              {"name": "MARKETING", "color": "greenLight"},
+              {"name": "AUTHENTICATION", "color": "redLight"}
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "language",
+          "field_id": "fldTplLang",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "en", "color": "blueLight"},
+              {"name": "mi", "color": "greenLight"}
+            ]
+          },
+          "default": "en"
+        },
+        {
+          "name": "header_text",
+          "field_id": "fldTplHeader",
+          "type": "singleLineText"
+        },
+        {
+          "name": "body_text",
+          "field_id": "fldTplBody",
+          "type": "multilineText",
+          "required": true
+        },
+        {
+          "name": "footer_text",
+          "field_id": "fldTplFooter",
+          "type": "singleLineText"
+        },
+        {
+          "name": "buttons_json",
+          "field_id": "fldTplButtons",
+          "type": "multilineText",
+          "validation": {"must_be_valid_json": true}
+        },
+        {
+          "name": "parameters_json",
+          "field_id": "fldTplParams",
+          "type": "multilineText",
+          "description": "JSON array of parameter definitions with types and examples",
+          "validation": {"must_be_valid_json": true}
+        },
+        {
+          "name": "approval_status",
+          "field_id": "fldTplStatus",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "DRAFT", "color": "grayLight"},
+              {"name": "SUBMITTED", "color": "yellowLight"},
+              {"name": "APPROVED", "color": "greenDark"},
+              {"name": "REJECTED", "color": "redDark"}
+            ]
+          },
+          "default": "DRAFT"
+        },
+        {
+          "name": "dialog_template_id",
+          "field_id": "fldDialogId",
+          "type": "singleLineText",
+          "description": "360dialog template ID once submitted"
+        },
+        {
+          "name": "rejection_reason",
+          "field_id": "fldRejReason",
+          "type": "multilineText"
+        },
+        {
+          "name": "last_submitted_at",
+          "field_id": "fldSubmittedAt",
+          "type": "dateTime"
+        },
+        {
+          "name": "notes",
+          "field_id": "fldTplNotes",
+          "type": "multilineText"
+        }
+      ],
+
+      "views": [
+        {
+          "name": "All Templates",
+          "type": "grid",
+          "sort": [{"field": "template_name", "direction": "asc"}]
+        },
+        {
+          "name": "Approved",
+          "type": "grid",
+          "filter": "{approval_status}='APPROVED'"
+        },
+        {
+          "name": "Pending Approval",
+          "type": "grid",
+          "filter": "{approval_status}='SUBMITTED'"
+        }
+      ]
+    },
+
+    {
+      "name": "Schema_Migrations",
+      "table_id": "tblMigrations",
+      "description": "Tracks schema changes applied to this base (migration log)",
+      "primary_field": "migration_id",
+      "icon": "cog",
+      "color": "gray",
+
+      "fields": [
+        {
+          "name": "migration_id",
+          "field_id": "fldMigId",
+          "type": "singleLineText",
+          "required": true,
+          "description": "Migration identifier (e.g., 001_initial_schema)",
+          "validation": {"unique": true}
+        },
+        {
+          "name": "version",
+          "field_id": "fldMigVersion",
+          "type": "singleLineText",
+          "required": true,
+          "description": "Schema version after this migration (semver)"
+        },
+        {
+          "name": "description",
+          "field_id": "fldMigDesc",
+          "type": "multilineText",
+          "required": true
+        },
+        {
+          "name": "applied_at",
+          "field_id": "fldAppliedAt",
+          "type": "dateTime",
+          "auto": true
+        },
+        {
+          "name": "applied_by",
+          "field_id": "fldAppliedBy",
+          "type": "singleLineText",
+          "required": true
+        },
+        {
+          "name": "status",
+          "field_id": "fldMigStatus",
+          "type": "singleSelect",
+          "options": {
+            "choices": [
+              {"name": "APPLIED", "color": "greenDark"},
+              {"name": "ROLLED_BACK", "color": "redLight"},
+              {"name": "FAILED", "color": "redDark"}
+            ]
+          },
+          "required": true
+        },
+        {
+          "name": "changes_json",
+          "field_id": "fldChanges",
+          "type": "multilineText",
+          "description": "JSON describing what changed (tables added/modified, fields added/modified)",
+          "validation": {"must_be_valid_json": true}
+        },
+        {
+          "name": "rollback_instructions",
+          "field_id": "fldRollback",
+          "type": "multilineText",
+          "description": "Steps to reverse this migration"
+        }
+      ],
+
+      "views": [
+        {
+          "name": "Migration History",
+          "type": "grid",
+          "sort": [{"field": "applied_at", "direction": "desc"}]
+        },
+        {
+          "name": "Failed Migrations",
+          "type": "grid",
+          "filter": "OR({status}='FAILED',{status}='ROLLED_BACK')"
+        }
+      ]
+    }
+  ],
+
+  "relationships": [
+    {
+      "from": "Work_Items.site_id",
+      "to": "Sites.work_items",
+      "type": "many-to-one",
+      "description": "Work item belongs to one site"
+    },
+    {
+      "from": "Work_Items.reporter_contact_id",
+      "to": "Contacts.work_items",
+      "type": "many-to-one",
+      "description": "Work item reported by one contact"
+    },
+    {
+      "from": "Work_Items.assigned_contractor_id",
+      "to": "Contractors.work_items",
+      "type": "many-to-one",
+      "description": "Work item assigned to one contractor"
+    },
+    {
+      "from": "Work_Items.assigned_team_member_id",
+      "to": "Team_Members.work_items",
+      "type": "many-to-one",
+      "description": "Work item assigned to one team member"
+    },
+    {
+      "from": "Work_Items.interaction_log",
+      "to": "Interaction_Log.work_item_id",
+      "type": "one-to-many",
+      "description": "Work item has many interaction log entries"
+    },
+    {
+      "from": "Sites.assigned_manager_id",
+      "to": "Team_Members.managed_sites",
+      "type": "many-to-one",
+      "description": "Site managed by one team member"
+    },
+    {
+      "from": "Sites.contacts",
+      "to": "Contacts.site_id",
+      "type": "one-to-many",
+      "description": "Site has many contacts (tenants)"
+    },
+    {
+      "from": "Escalation_Log.work_item_id",
+      "to": "Work_Items",
+      "type": "many-to-one",
+      "description": "Escalation belongs to one work item"
+    },
+    {
+      "from": "Escalation_Log.notified_person",
+      "to": "Team_Members",
+      "type": "many-to-one",
+      "description": "Escalation notified one team member"
+    }
+  ],
+
+  "state_machine": {
+    "table": "Work_Items",
+    "field": "current_state",
+    "initial_state": "INTAKE",
+    "terminal_states": ["CLOSED"],
+    "transitions": [
+      {"from": "INTAKE", "to": ["CLARIFICATION", "ASSESSMENT", "CLOSED"], "description": "New work item triaged"},
+      {"from": "CLARIFICATION", "to": ["ASSESSMENT", "INTAKE", "CLOSED"], "description": "More info gathered"},
+      {"from": "ASSESSMENT", "to": ["ASSIGNED_INTERNAL", "RFQ_SENT", "CLOSED"], "description": "Work assessed and routed"},
+      {"from": "ASSIGNED_INTERNAL", "to": ["IN_PROGRESS_INTERNAL", "ASSESSMENT", "CLOSED"], "description": "Internal team takes ownership"},
+      {"from": "RFQ_SENT", "to": ["QUOTES_RECEIVED", "ASSESSMENT", "CLOSED"], "description": "Quote requests sent to contractors"},
+      {"from": "QUOTES_RECEIVED", "to": ["QUOTE_ACCEPTED", "RFQ_SENT", "CLOSED"], "description": "Quotes evaluated"},
+      {"from": "QUOTE_ACCEPTED", "to": ["IN_PROGRESS_EXTERNAL", "CLOSED"], "description": "Quote accepted, contractor confirmed"},
+      {"from": "IN_PROGRESS_INTERNAL", "to": ["VERIFICATION", "CLOSED"], "description": "Internal work underway"},
+      {"from": "IN_PROGRESS_EXTERNAL", "to": ["VERIFICATION", "CLOSED"], "description": "External contractor work underway"},
+      {"from": "VERIFICATION", "to": ["PAYMENT_PENDING", "IN_PROGRESS_INTERNAL", "IN_PROGRESS_EXTERNAL", "CLOSED"], "description": "Work verified by tenant/manager"},
+      {"from": "PAYMENT_PENDING", "to": ["CLOSED"], "description": "Awaiting Xero payment confirmation"}
+    ]
+  },
+
+  "sla_definitions": {
+    "EMERGENCY": {"target_hours": 4, "escalation_intervals_minutes": [15, 30, 60, 120]},
+    "URGENT": {"target_hours": 8, "escalation_intervals_minutes": [30, 60, 120, 240]},
+    "HIGH": {"target_hours": 24, "escalation_intervals_minutes": [60, 120, 240, 480]},
+    "MEDIUM": {"target_hours": 72, "escalation_intervals_minutes": [120, 480, 1440, 2880]},
+    "LOW": {"target_hours": 168, "escalation_intervals_minutes": [1440, 2880, 4320, 10080]}
+  },
+
+  "constraints": {
+    "max_rows_per_table": 125000,
+    "archival_threshold_rows": 100000,
+    "archival_policy": "Records in CLOSED state older than 180 days are exported to JSON backup and can be deleted",
+    "sensitive_fields": [
+      "Sites.key_safe_code"
+    ],
+    "unique_fields": [
+      "Contacts.whatsapp_phone",
+      "Sites.site_code",
+      "WhatsApp_Templates.template_name",
+      "Schema_Migrations.migration_id",
+      "Interaction_Log.whatsapp_message_id"
+    ]
+  }
+}

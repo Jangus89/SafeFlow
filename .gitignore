@@ -24,6 +24,8 @@ make-scenarios/*-with-credentials.*
 # Airtable
 airtable-exports/
 *.airtable-backup
+airtable/backups/*
+!airtable/backups/.gitkeep
 
 # Xero
 xero-tokens/

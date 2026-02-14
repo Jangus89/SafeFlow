@@ -1,0 +1,46 @@
+{
+  "description": "Data transformation map for normalizing inbound WhatsApp webhook payloads into internal format",
+  "version": "1.0.0",
+  "input": "360dialog webhook payload",
+  "output": "SafeFlow normalized message",
+  "transform": {
+    "message_id": "{{entry[0].changes[0].value.messages[0].id}}",
+    "sender_phone": "{{entry[0].changes[0].value.messages[0].from}}",
+    "sender_name": "{{entry[0].changes[0].value.contacts[0].profile.name}}",
+    "timestamp": "{{toDateTime(entry[0].changes[0].value.messages[0].timestamp)}}",
+    "message_type": "{{entry[0].changes[0].value.messages[0].type}}",
+    "content": {
+      "_switch": "message_type",
+      "text": "{{entry[0].changes[0].value.messages[0].text.body}}",
+      "image": {
+        "media_id": "{{entry[0].changes[0].value.messages[0].image.id}}",
+        "caption": "{{entry[0].changes[0].value.messages[0].image.caption}}",
+        "mime_type": "{{entry[0].changes[0].value.messages[0].image.mime_type}}"
+      },
+      "interactive": {
+        "reply_type": "{{entry[0].changes[0].value.messages[0].interactive.type}}",
+        "reply_id": "{{coalesce(entry[0].changes[0].value.messages[0].interactive.button_reply.id, entry[0].changes[0].value.messages[0].interactive.list_reply.id)}}",
+        "reply_title": "{{coalesce(entry[0].changes[0].value.messages[0].interactive.button_reply.title, entry[0].changes[0].value.messages[0].interactive.list_reply.title)}}"
+      },
+      "location": {
+        "latitude": "{{entry[0].changes[0].value.messages[0].location.latitude}}",
+        "longitude": "{{entry[0].changes[0].value.messages[0].location.longitude}}",
+        "name": "{{entry[0].changes[0].value.messages[0].location.name}}"
+      }
+    },
+    "waba_id": "{{entry[0].id}}",
+    "phone_number_id": "{{entry[0].changes[0].value.metadata.phone_number_id}}",
+    "is_status_update": "{{entry[0].changes[0].value.statuses != null}}",
+    "status_update": {
+      "message_id": "{{entry[0].changes[0].value.statuses[0].id}}",
+      "status": "{{entry[0].changes[0].value.statuses[0].status}}",
+      "recipient": "{{entry[0].changes[0].value.statuses[0].recipient_id}}"
+    }
+  },
+  "notes": [
+    "This transform runs as the first step in Make.com after webhook receipt",
+    "In Make.com, implement using JSON parse + Set Variable modules",
+    "Status updates (sent/delivered/read) are separated from actual messages",
+    "Phone numbers arrive without + prefix — add +prefix for E.164 storage"
+  ]
+}

@@ -1,0 +1,140 @@
+{
+  "name": "safeflow-escalation-handler",
+  "description": "Scheduled scenario that checks for overdue maintenance requests and escalates",
+  "version": "1.0.0",
+  "trigger": "schedule",
+  "schedule": {
+    "interval": 15,
+    "unit": "minutes",
+    "notes": "Runs every 15 minutes to check for requests needing escalation"
+  },
+  "flow": {
+    "modules": [
+      {
+        "id": 1,
+        "name": "Fetch Overdue Requests",
+        "type": "airtable_search",
+        "config": {
+          "base_id": "{{env.AIRTABLE_BASE_ID}}",
+          "table": "Maintenance Requests",
+          "filter": "AND(OR({Status} = 'New', {Status} = 'In Progress'), {Next Escalation At} <= NOW())",
+          "sort": [
+            { "field": "Urgency", "direction": "desc" },
+            { "field": "Created", "direction": "asc" }
+          ],
+          "max_records": 20,
+          "notes": "Process max 20 per run to stay within operation limits"
+        }
+      },
+      {
+        "id": 2,
+        "name": "Iterator: Process Each Request",
+        "type": "iterator",
+        "source": "{{1.result}}",
+        "modules": [
+          {
+            "name": "Calculate Escalation Level",
+            "type": "set_variable",
+            "config": {
+              "name": "escalation_level",
+              "logic": {
+                "current_level": "{{item.fields.Escalation Level}}",
+                "new_level": "{{item.fields.Escalation Level + 1}}",
+                "max_level": 4,
+                "levels": {
+                  "1": { "notify": "assigned_contractor", "method": "whatsapp", "label": "Contractor Reminder" },
+                  "2": { "notify": "property_manager", "method": "whatsapp", "label": "Manager Alert" },
+                  "3": { "notify": "senior_manager", "method": "whatsapp_and_email", "label": "Senior Manager Escalation" },
+                  "4": { "notify": "director", "method": "whatsapp_and_email_and_sms", "label": "Director Escalation" }
+                }
+              }
+            }
+          },
+          {
+            "name": "Update Request Escalation",
+            "type": "airtable_update",
+            "config": {
+              "table": "Maintenance Requests",
+              "record_id": "{{item.id}}",
+              "fields": {
+                "Escalation Level": "{{escalation_level.new_level}}",
+                "Last Escalated At": "{{now}}",
+                "Next Escalation At": "{{addMinutes(now, escalation_interval)}}",
+                "Notes": "{{item.fields.Notes}}\n\n[{{now}}] Auto-escalated to level {{escalation_level.new_level}}: {{escalation_level.levels[new_level].label}}"
+              }
+            },
+            "notes": "Escalation intervals: Urgent=15min, High=30min, Medium=2h, Low=24h"
+          },
+          {
+            "name": "Send Escalation Notification",
+            "type": "http_request",
+            "config": {
+              "url": "{{env.WHATSAPP_API_URL}}/messages",
+              "method": "POST",
+              "body": {
+                "messaging_product": "whatsapp",
+                "to": "{{escalation_target_phone}}",
+                "type": "template",
+                "template": {
+                  "name": "escalation_notice",
+                  "language": { "code": "en" },
+                  "components": [
+                    {
+                      "type": "body",
+                      "parameters": [
+                        { "type": "text", "text": "{{item.fields.Reference}}" },
+                        { "type": "text", "text": "{{item.fields.Category}}" },
+                        { "type": "text", "text": "{{item.fields.Description}}" },
+                        { "type": "text", "text": "{{escalation_level.levels[new_level].label}}" },
+                        { "type": "text", "text": "{{item.fields.Tenant Name}}" }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "name": "Log Escalation",
+            "type": "airtable_create",
+            "config": {
+              "table": "Escalation Log",
+              "fields": {
+                "Maintenance Request": ["{{item.id}}"],
+                "From Level": "{{escalation_level.current_level}}",
+                "To Level": "{{escalation_level.new_level}}",
+                "Notified": "{{escalation_level.levels[new_level].notify}}",
+                "Method": "{{escalation_level.levels[new_level].method}}",
+                "Timestamp": "{{now}}"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "error_handler": {
+      "type": "per_item",
+      "action": "continue",
+      "log": {
+        "type": "airtable_create",
+        "config": {
+          "table": "Error Log",
+          "fields": {
+            "Scenario": "safeflow-escalation-handler",
+            "Module": "{{error.module}}",
+            "Error": "{{error.message}}",
+            "Related Record": "{{item.id}}",
+            "Timestamp": "{{now}}"
+          }
+        }
+      },
+      "notes": "Continue processing remaining items even if one fails"
+    }
+  },
+  "escalation_intervals": {
+    "emergency": { "minutes": 15, "max_level": 4 },
+    "high":      { "minutes": 30, "max_level": 4 },
+    "medium":    { "hours": 2, "max_level": 3 },
+    "low":       { "hours": 24, "max_level": 2 }
+  }
+}

@@ -1,0 +1,171 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "360dialog WhatsApp Webhook Payload",
+  "description": "Validation schema for inbound 360dialog webhook payloads",
+  "version": "1.0.0",
+  "type": "object",
+  "required": ["object", "entry"],
+  "properties": {
+    "object": {
+      "type": "string",
+      "const": "whatsapp_business_account"
+    },
+    "entry": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "changes"],
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "WhatsApp Business Account ID"
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["value", "field"],
+              "properties": {
+                "value": {
+                  "type": "object",
+                  "required": ["messaging_product", "metadata"],
+                  "properties": {
+                    "messaging_product": {
+                      "type": "string",
+                      "const": "whatsapp"
+                    },
+                    "metadata": {
+                      "type": "object",
+                      "required": ["display_phone_number", "phone_number_id"],
+                      "properties": {
+                        "display_phone_number": { "type": "string" },
+                        "phone_number_id": { "type": "string" }
+                      }
+                    },
+                    "contacts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["profile", "wa_id"],
+                        "properties": {
+                          "profile": {
+                            "type": "object",
+                            "properties": {
+                              "name": { "type": "string" }
+                            }
+                          },
+                          "wa_id": {
+                            "type": "string",
+                            "pattern": "^[0-9]{10,15}$"
+                          }
+                        }
+                      }
+                    },
+                    "messages": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["from", "id", "timestamp", "type"],
+                        "properties": {
+                          "from": {
+                            "type": "string",
+                            "pattern": "^[0-9]{10,15}$",
+                            "description": "Sender phone number in E.164 format without +"
+                          },
+                          "id": {
+                            "type": "string",
+                            "description": "Unique message ID from WhatsApp"
+                          },
+                          "timestamp": {
+                            "type": "string",
+                            "pattern": "^[0-9]{10}$",
+                            "description": "Unix timestamp"
+                          },
+                          "type": {
+                            "type": "string",
+                            "enum": ["text", "image", "document", "audio", "video", "location", "contacts", "interactive", "button", "sticker", "reaction"]
+                          },
+                          "text": {
+                            "type": "object",
+                            "properties": {
+                              "body": {
+                                "type": "string",
+                                "maxLength": 4096
+                              }
+                            }
+                          },
+                          "image": {
+                            "type": "object",
+                            "properties": {
+                              "id": { "type": "string" },
+                              "mime_type": { "type": "string" },
+                              "sha256": { "type": "string" },
+                              "caption": { "type": "string" }
+                            }
+                          },
+                          "interactive": {
+                            "type": "object",
+                            "properties": {
+                              "type": {
+                                "type": "string",
+                                "enum": ["button_reply", "list_reply"]
+                              },
+                              "button_reply": {
+                                "type": "object",
+                                "properties": {
+                                  "id": { "type": "string" },
+                                  "title": { "type": "string" }
+                                }
+                              },
+                              "list_reply": {
+                                "type": "object",
+                                "properties": {
+                                  "id": { "type": "string" },
+                                  "title": { "type": "string" },
+                                  "description": { "type": "string" }
+                                }
+                              }
+                            }
+                          },
+                          "location": {
+                            "type": "object",
+                            "properties": {
+                              "latitude": { "type": "number" },
+                              "longitude": { "type": "number" },
+                              "name": { "type": "string" },
+                              "address": { "type": "string" }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "statuses": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "string" },
+                          "status": {
+                            "type": "string",
+                            "enum": ["sent", "delivered", "read", "failed"]
+                          },
+                          "timestamp": { "type": "string" },
+                          "recipient_id": { "type": "string" }
+                        }
+                      }
+                    }
+                  }
+                },
+                "field": {
+                  "type": "string",
+                  "const": "messages"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

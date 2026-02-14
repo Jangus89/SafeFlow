@@ -1,0 +1,184 @@
+{
+  "name": "safeflow-outbound-notification",
+  "description": "Sends proactive notifications to tenants (reminders, updates, alerts)",
+  "version": "1.0.0",
+  "trigger": "webhook",
+  "flow": {
+    "modules": [
+      {
+        "id": 1,
+        "name": "Webhook: Notification Trigger",
+        "type": "webhook",
+        "config": {
+          "name": "sf-webhook-notification",
+          "method": "POST",
+          "expected_payload": {
+            "notification_type": "string (status_update|rent_reminder|inspection_notice|general_announcement)",
+            "recipient_phone": "string",
+            "recipient_name": "string",
+            "template_name": "string",
+            "template_params": "object",
+            "priority": "string (normal|high)"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "name": "Router: Notification Type",
+        "type": "router",
+        "config": {
+          "routes": [
+            {
+              "name": "Status Update",
+              "condition": "{{1.body.notification_type}} == 'status_update'",
+              "target": 3
+            },
+            {
+              "name": "Rent Reminder",
+              "condition": "{{1.body.notification_type}} == 'rent_reminder'",
+              "target": 4
+            },
+            {
+              "name": "Inspection Notice",
+              "condition": "{{1.body.notification_type}} == 'inspection_notice'",
+              "target": 5
+            },
+            {
+              "name": "General",
+              "condition": "true",
+              "target": 6
+            }
+          ]
+        }
+      },
+      {
+        "id": 3,
+        "name": "Send: Status Update",
+        "type": "http_request",
+        "config": {
+          "url": "{{env.WHATSAPP_API_URL}}/messages",
+          "method": "POST",
+          "body": {
+            "messaging_product": "whatsapp",
+            "to": "{{1.body.recipient_phone}}",
+            "type": "template",
+            "template": {
+              "name": "maintenance_status_update",
+              "language": { "code": "en" },
+              "components": [
+                {
+                  "type": "body",
+                  "parameters": [
+                    { "type": "text", "text": "{{1.body.recipient_name}}" },
+                    { "type": "text", "text": "{{1.body.template_params.reference}}" },
+                    { "type": "text", "text": "{{1.body.template_params.new_status}}" },
+                    { "type": "text", "text": "{{1.body.template_params.details}}" }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "name": "Send: Rent Reminder",
+        "type": "http_request",
+        "config": {
+          "url": "{{env.WHATSAPP_API_URL}}/messages",
+          "method": "POST",
+          "body": {
+            "messaging_product": "whatsapp",
+            "to": "{{1.body.recipient_phone}}",
+            "type": "template",
+            "template": {
+              "name": "rent_payment_reminder",
+              "language": { "code": "en" },
+              "components": [
+                {
+                  "type": "body",
+                  "parameters": [
+                    { "type": "text", "text": "{{1.body.recipient_name}}" },
+                    { "type": "text", "text": "{{1.body.template_params.amount}}" },
+                    { "type": "text", "text": "{{1.body.template_params.due_date}}" }
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "name": "Send: Inspection Notice",
+        "type": "http_request",
+        "config": {
+          "url": "{{env.WHATSAPP_API_URL}}/messages",
+          "method": "POST",
+          "body": {
+            "messaging_product": "whatsapp",
+            "to": "{{1.body.recipient_phone}}",
+            "type": "interactive",
+            "interactive": {
+              "type": "button",
+              "body": {
+                "text": "Hi {{1.body.recipient_name}}, a property inspection has been scheduled for {{1.body.template_params.date}} at {{1.body.template_params.time}}. Please confirm your availability."
+              },
+              "action": {
+                "buttons": [
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "inspect_confirm_{{1.body.template_params.inspection_id}}",
+                      "title": "Confirm"
+                    }
+                  },
+                  {
+                    "type": "reply",
+                    "reply": {
+                      "id": "inspect_reschedule_{{1.body.template_params.inspection_id}}",
+                      "title": "Request Reschedule"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "name": "Send: General Message",
+        "type": "http_request",
+        "config": {
+          "url": "{{env.WHATSAPP_API_URL}}/messages",
+          "method": "POST",
+          "body": {
+            "messaging_product": "whatsapp",
+            "to": "{{1.body.recipient_phone}}",
+            "type": "text",
+            "text": {
+              "body": "{{1.body.template_params.message}}"
+            }
+          }
+        }
+      },
+      {
+        "id": 7,
+        "name": "Log Notification",
+        "type": "airtable_create",
+        "config": {
+          "table": "Message Log",
+          "fields": {
+            "Direction": "Outbound",
+            "Recipient": "{{1.body.recipient_phone}}",
+            "Type": "{{1.body.notification_type}}",
+            "Template": "{{1.body.template_name}}",
+            "Priority": "{{1.body.priority}}",
+            "Timestamp": "{{now}}"
+          }
+        }
+      }
+    ]
+  }
+}

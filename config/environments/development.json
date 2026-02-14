@@ -1,0 +1,61 @@
+{
+  "environment": "development",
+  "version": "1.0.0",
+  "settings": {
+    "app": {
+      "timezone": "Pacific/Auckland",
+      "default_language": "en",
+      "log_level": "debug"
+    },
+    "rate_limits": {
+      "whatsapp_messages_per_minute": 10,
+      "airtable_requests_per_second": 2,
+      "claude_requests_per_minute": 20,
+      "xero_calls_per_minute": 10
+    },
+    "escalation": {
+      "emergency_timeout_minutes": 5,
+      "high_timeout_minutes": 10,
+      "medium_timeout_minutes": 30,
+      "low_timeout_minutes": 60,
+      "max_escalation_level": 2,
+      "check_interval_minutes": 5
+    },
+    "conversations": {
+      "context_window_messages": 10,
+      "auto_close_hours": 1,
+      "max_active_per_tenant": 5
+    },
+    "claude": {
+      "model": "claude-sonnet-4-20250514",
+      "classifier_temperature": 0.2,
+      "extraction_temperature": 0.2,
+      "generation_temperature": 0.4,
+      "max_tokens_classification": 1024,
+      "max_tokens_extraction": 1024,
+      "max_tokens_generation": 512,
+      "fallback_enabled": true,
+      "fallback_message": "[DEV] Sorry, I'm having trouble processing your message right now."
+    },
+    "xero": {
+      "sync_interval_minutes": 60,
+      "invoice_due_days": 14,
+      "default_tax_type": "OUTPUT2",
+      "invoice_status": "DRAFT",
+      "max_items_per_sync": 3
+    },
+    "monitoring": {
+      "health_check_interval_minutes": 15,
+      "error_threshold_per_hour": 50,
+      "alert_channels": ["email"]
+    }
+  },
+  "feature_flags": {
+    "xero_auto_invoice": false,
+    "multilingual_support": false,
+    "photo_analysis": false,
+    "tenant_self_registration": true,
+    "contractor_whatsapp": false,
+    "satisfaction_survey": false
+  }
+}

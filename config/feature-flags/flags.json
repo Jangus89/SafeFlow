@@ -1,0 +1,46 @@
+{
+  "description": "Feature flags for SafeFlow. Toggle features without code changes.",
+  "version": "1.0.0",
+  "flags": {
+    "xero_auto_invoice": {
+      "description": "Automatically create Xero invoices for completed maintenance work",
+      "default": false,
+      "notes": "Enable after Xero integration is fully tested and account codes verified"
+    },
+    "multilingual_support": {
+      "description": "Enable non-English message handling (te reo Māori, Chinese, Hindi)",
+      "default": false,
+      "notes": "Requires translated WhatsApp templates to be approved by Meta"
+    },
+    "photo_analysis": {
+      "description": "Use Claude vision to analyze maintenance photos",
+      "default": false,
+      "notes": "Requires claude-sonnet model with vision capability"
+    },
+    "tenant_self_registration": {
+      "description": "Allow unknown numbers to self-register as tenants",
+      "default": true,
+      "notes": "When false, unknown numbers receive a 'contact your property manager' message"
+    },
+    "contractor_whatsapp": {
+      "description": "Send job assignments to contractors via WhatsApp (vs email only)",
+      "default": false,
+      "notes": "Requires contractor phone numbers and WhatsApp template approval"
+    },
+    "satisfaction_survey": {
+      "description": "Send satisfaction survey after maintenance request is resolved",
+      "default": true,
+      "notes": "Sends interactive button message asking for 1-5 rating"
+    },
+    "auto_contractor_assignment": {
+      "description": "Automatically assign contractors based on category and availability",
+      "default": false,
+      "notes": "Uses contractor specialties and availability from Contractors table"
+    },
+    "conversation_summary": {
+      "description": "Generate rolling conversation summaries for long conversations",
+      "default": false,
+      "notes": "Uses Claude to summarize conversation history beyond context window"
+    }
+  }
+}

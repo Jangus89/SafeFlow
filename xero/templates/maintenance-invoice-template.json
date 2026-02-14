@@ -1,0 +1,40 @@
+{
+  "description": "Template for generating Xero invoices from completed maintenance requests",
+  "version": "1.0.0",
+  "template": {
+    "Type": "ACCREC",
+    "Contact": {
+      "ContactID": "{{property_owner_xero_contact_id}}"
+    },
+    "Date": "{{invoice_date | format: YYYY-MM-DD}}",
+    "DueDate": "{{invoice_date | add_days: 14 | format: YYYY-MM-DD}}",
+    "LineAmountTypes": "Exclusive",
+    "Status": "DRAFT",
+    "Reference": "{{maintenance_reference}}",
+    "LineItems": [
+      {
+        "Description": "Maintenance Work - {{category}}\nRef: {{maintenance_reference}}\nProperty: {{property_name}}\nUnit: {{unit_number}}\n\n{{description}}\n\nContractor: {{contractor_name}}",
+        "Quantity": 1,
+        "UnitAmount": "{{cost}}",
+        "AccountCode": "{{account_code}}",
+        "TaxType": "OUTPUT2",
+        "Tracking": [
+          {
+            "Name": "Property",
+            "Option": "{{property_name}}"
+          },
+          {
+            "Name": "Category",
+            "Option": "{{category}}"
+          }
+        ]
+      }
+    ],
+    "BrandingThemeID": "{{branding_theme_id | optional}}"
+  },
+  "validation_rules": {
+    "cost_must_be_positive": "{{cost}} > 0",
+    "contact_must_exist": "{{property_owner_xero_contact_id}} is not null",
+    "reference_must_be_unique": "No existing invoice with same Reference"
+  }
+}

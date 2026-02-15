@@ -1,0 +1,112 @@
+{
+  "description": "Scenario where the scheduled run finds three overdue work items at different urgency levels and escalation stages. Each item should be processed independently through the iterator with its own state-specific nudge logic and escalation level calculation.",
+  "airtable_query_result": {
+    "records": [
+      {
+        "id": "recWI001050",
+        "fields": {
+          "work_item_id": 1050,
+          "title": "Gas smell reported - third floor, Meridian House",
+          "current_state": "ASSIGNED",
+          "urgency": "EMERGENCY",
+          "sla_due_at": "2026-02-15T09:15:00.000Z",
+          "escalation_level": 0,
+          "assigned_engineer_id": "recENG002ABC",
+          "contractor_id": "",
+          "reported_by": "recTEN001ABC",
+          "site_id": "recSITE001",
+          "discipline_required": "HVAC",
+          "state_started_at": "2026-02-15T08:45:00.000Z",
+          "time_in_current_state": 30,
+          "is_overdue": false,
+          "state_locked": false,
+          "priority_score": 100
+        }
+      },
+      {
+        "id": "recWI001048",
+        "fields": {
+          "work_item_id": 1048,
+          "title": "Complete heating failure - all floors, Victoria House",
+          "current_state": "IN_PROGRESS",
+          "urgency": "URGENT",
+          "sla_due_at": "2026-02-15T08:00:00.000Z",
+          "escalation_level": 1,
+          "assigned_engineer_id": "recENG003ABC",
+          "contractor_id": "recCON002ABC",
+          "reported_by": "recTEN002ABC",
+          "site_id": "recSITE003",
+          "discipline_required": "HVAC",
+          "state_started_at": "2026-02-14T10:00:00.000Z",
+          "time_in_current_state": 1530,
+          "is_overdue": true,
+          "state_locked": false,
+          "priority_score": 85
+        }
+      },
+      {
+        "id": "recWI001040",
+        "fields": {
+          "work_item_id": 1040,
+          "title": "Flickering lights in reception area - Cabot Tower",
+          "current_state": "VERIFICATION",
+          "urgency": "STANDARD",
+          "sla_due_at": "2026-02-14T10:00:00.000Z",
+          "escalation_level": 0,
+          "assigned_engineer_id": "recENG001ABC",
+          "contractor_id": "",
+          "reported_by": "recTEN003ABC",
+          "site_id": "recSITE004",
+          "discipline_required": "ELECTRICAL",
+          "state_started_at": "2026-02-12T14:00:00.000Z",
+          "time_in_current_state": 4350,
+          "is_overdue": true,
+          "state_locked": false,
+          "priority_score": 45
+        }
+      }
+    ],
+    "total_count": 3
+  },
+  "trigger_context": {
+    "trigger_time": "2026-02-15T11:15:00.000Z",
+    "note": "Scheduled run at 11:15 on Feb 15. Three items found at different stages of overdue processing."
+  },
+  "expected_behaviour": {
+    "should_pass_filter": true,
+    "item_count": 3,
+    "items": [
+      {
+        "work_item_id": 1050,
+        "urgency": "EMERGENCY",
+        "nudge_route": "7c - ASSIGNED Overdue",
+        "action": "NUDGE_ASSIGNEE",
+        "required_escalation_level": 1,
+        "notification_type": "ASSIGNMENT_NUDGE",
+        "state_transition": "none"
+      },
+      {
+        "work_item_id": 1048,
+        "urgency": "URGENT",
+        "nudge_route": "7d - IN_PROGRESS Overdue",
+        "action": "CHECK_IN_ASSIGNEE",
+        "required_escalation_level": 2,
+        "notification_type": "IN_PROGRESS_OVERDUE",
+        "state_transition": "ESCALATED"
+      },
+      {
+        "work_item_id": 1040,
+        "urgency": "STANDARD",
+        "nudge_route": "7e - VERIFICATION Overdue",
+        "action": "AUTO_CLOSE",
+        "required_escalation_level": 1,
+        "notification_type": "AUTO_CLOSE_NOTICE",
+        "state_transition": "CLOSED (auto-close after 72+ hours in verification)"
+      }
+    ],
+    "total_notifications_sent": 3,
+    "total_state_transitions": 2,
+    "should_log_escalation_for_each": true,
+    "note": "Each item is processed independently. The iterator ensures sequential processing to avoid Airtable rate limiting."
+  }
+}

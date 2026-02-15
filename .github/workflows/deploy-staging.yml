@@ -1,0 +1,96 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Pre-deployment Validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install jsonschema pytest
+
+      - name: Validate all JSON
+        run: |
+          python3 -c "
+          import json, glob, sys
+          errors = []
+          for f in glob.glob('**/*.json', recursive=True):
+              if '.git' in f or 'node_modules' in f:
+                  continue
+              try:
+                  with open(f) as fh:
+                      json.load(fh)
+              except json.JSONDecodeError as e:
+                  errors.append(f'{f}: {e}')
+          if errors:
+              print('JSON validation failed:')
+              for e in errors:
+                  print(f'  {e}')
+              sys.exit(1)
+          print('All JSON files valid.')
+          "
+
+      - name: Run schema tests
+        run: pytest airtable/tests/ -v
+
+  deploy-scenarios:
+    name: Deploy Scenarios to Staging
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: staging
+    strategy:
+      matrix:
+        scenario:
+          - scenario-a-inbound
+          - scenario-b-state-engine
+          - scenario-c-outbound
+          - scenario-d-sla
+          - scenario-e-dlq
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy ${{ matrix.scenario }}
+        env:
+          MAKE_API_KEY: ${{ secrets.MAKE_API_KEY_STAGING }}
+        run: |
+          echo "Deploying ${{ matrix.scenario }} to staging..."
+          bash scripts/deploy/deploy-scenario.sh ${{ matrix.scenario }} --environment staging
+          echo "Deployment complete."
+
+  smoke-test:
+    name: Post-deployment Smoke Test
+    needs: deploy-scenarios
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for scenarios to initialise
+        run: sleep 30
+
+      - name: Send test message
+        env:
+          DIALOG_API_KEY: ${{ secrets.DIALOG_API_KEY_STAGING }}
+          TEST_PHONE_NUMBER: ${{ secrets.TEST_PHONE_NUMBER }}
+        run: |
+          echo "Sending smoke test message..."
+          curl -s -X POST "https://waba.360dialog.io/v1/messages" \
+            -H "D360-API-KEY: ${DIALOG_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "messaging_product": "whatsapp",
+              "to": "'"${TEST_PHONE_NUMBER}"'",
+              "type": "text",
+              "text": {"body": "SafeFlow smoke test - please ignore"}
+            }' | jq .
+          echo "Smoke test sent. Check staging environment for processing."

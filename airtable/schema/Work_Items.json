@@ -1,0 +1,451 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblWorkItems",
+  "name": "Work_Items",
+  "description": "Core table tracking all facilities management work items from intake through to completion and payment. Each record represents a single maintenance request, repair job, or scheduled work item reported via WhatsApp or other channels.",
+  "record_count_estimate": "High volume - expect thousands of records per month across all sites",
+  "primary_field": "title",
+  "fields": [
+    {
+      "field_id": "fldWIAutoId",
+      "name": "work_item_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each work item"
+    },
+    {
+      "field_id": "fldWITitle",
+      "name": "title",
+      "type": "singleLineText",
+      "description": "Short descriptive title for the work item, typically LLM-generated from the initial message"
+    },
+    {
+      "field_id": "fldWIDescription",
+      "name": "description",
+      "type": "multilineText",
+      "description": "Full description of the issue or work required, including any details extracted from WhatsApp messages"
+    },
+    {
+      "field_id": "fldWICurrentState",
+      "name": "current_state",
+      "type": "singleSelect",
+      "description": "Current state of the work item in the state machine lifecycle",
+      "options": {
+        "choices": [
+          { "name": "INTAKE", "color": "blueLight2" },
+          { "name": "CLARIFICATION", "color": "cyanLight2" },
+          { "name": "ASSESSMENT", "color": "tealLight2" },
+          { "name": "ASSIGNED", "color": "greenLight2" },
+          { "name": "IN_PROGRESS", "color": "yellowLight2" },
+          { "name": "VERIFICATION", "color": "orangeLight2" },
+          { "name": "PAYMENT_PENDING", "color": "redLight2" },
+          { "name": "CLOSED", "color": "grayLight2" },
+          { "name": "ESCALATED", "color": "redBright" },
+          { "name": "ON_HOLD", "color": "purpleLight2" },
+          { "name": "CANCELLED", "color": "grayDark1" },
+          { "name": "REOPENED", "color": "pinkLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldWIStateStartedAt",
+      "name": "state_started_at",
+      "type": "dateTime",
+      "description": "Timestamp when the work item entered its current state",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldWIStateHistory",
+      "name": "state_history",
+      "type": "multilineText",
+      "description": "JSON array recording all state transitions. Each entry contains: from_state, to_state, trigger, timestamp, actor_id, and notes"
+    },
+    {
+      "field_id": "fldWIStateLocked",
+      "name": "state_locked",
+      "type": "checkbox",
+      "description": "When true, prevents automated state transitions. Used during manual review or dispute resolution",
+      "options": {
+        "icon": "check",
+        "color": "redBright"
+      }
+    },
+    {
+      "field_id": "fldWISiteId",
+      "name": "site_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the site where this work item is located",
+      "options": {
+        "linkedTableId": "tblSites",
+        "prefersSingleRecordLink": true,
+        "inverseLinkFieldId": "fldSitWorkItems"
+      }
+    },
+    {
+      "field_id": "fldWIReportedBy",
+      "name": "reported_by",
+      "type": "multipleRecordLinks",
+      "description": "Link to the person who reported this issue, typically a tenant or property manager",
+      "options": {
+        "linkedTableId": "tblPeople",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldWIAssignedEngineer",
+      "name": "assigned_engineer_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the internal engineer assigned to this work item",
+      "options": {
+        "linkedTableId": "tblPeople",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldWIContractorId",
+      "name": "contractor_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the external contractor assigned to this work item, if applicable",
+      "options": {
+        "linkedTableId": "tblContractors",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldWIDiscipline",
+      "name": "discipline_required",
+      "type": "singleSelect",
+      "description": "The trade discipline required to complete this work item",
+      "options": {
+        "choices": [
+          { "name": "PLUMBING", "color": "blueLight2" },
+          { "name": "ELECTRICAL", "color": "yellowLight2" },
+          { "name": "GAS_SAFE", "color": "redLight2" },
+          { "name": "HVAC", "color": "cyanLight2" },
+          { "name": "LIFT_ENGINEER", "color": "purpleLight2" },
+          { "name": "FIRE_SAFETY", "color": "orangeLight2" },
+          { "name": "GENERAL_MAINTENANCE", "color": "greenLight2" },
+          { "name": "SPECIALIST", "color": "pinkLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldWIUrgency",
+      "name": "urgency",
+      "type": "singleSelect",
+      "description": "Urgency level determining SLA timescales. EMERGENCY triggers immediate response protocols",
+      "options": {
+        "choices": [
+          { "name": "EMERGENCY", "color": "redBright" },
+          { "name": "URGENT", "color": "orangeBright" },
+          { "name": "STANDARD", "color": "yellowBright" },
+          { "name": "SCHEDULED", "color": "greenBright" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldWILLMData",
+      "name": "llm_extracted_data",
+      "type": "multilineText",
+      "description": "JSON object containing structured data extracted by the LLM from inbound WhatsApp messages. Includes identified issue type, location hints, urgency indicators, and any other parsed information"
+    },
+    {
+      "field_id": "fldWILLMConfidence",
+      "name": "llm_confidence",
+      "type": "number",
+      "description": "Confidence score (0.00 to 1.00) from the LLM extraction process. Scores below 0.70 trigger clarification flow",
+      "options": {
+        "precision": 2
+      }
+    },
+    {
+      "field_id": "fldWILocBuilding",
+      "name": "location_building",
+      "type": "singleLineText",
+      "description": "Building name or number within the site"
+    },
+    {
+      "field_id": "fldWILocFloor",
+      "name": "location_floor",
+      "type": "singleLineText",
+      "description": "Floor level within the building (e.g. Ground, 1st, 2nd, Basement)"
+    },
+    {
+      "field_id": "fldWILocUnit",
+      "name": "location_unit",
+      "type": "singleLineText",
+      "description": "Unit or suite number within the building"
+    },
+    {
+      "field_id": "fldWILocArea",
+      "name": "location_area",
+      "type": "singleLineText",
+      "description": "Specific area within the unit (e.g. Kitchen, WC, Reception, Server Room)"
+    },
+    {
+      "field_id": "fldWIRoutingDecision",
+      "name": "routing_decision",
+      "type": "singleSelect",
+      "description": "Triage outcome determining whether work is handled internally, sent to an external contractor, or requires further clarification",
+      "options": {
+        "choices": [
+          { "name": "INTERNAL_ENGINEER", "color": "greenLight2" },
+          { "name": "EXTERNAL_CONTRACTOR", "color": "blueLight2" },
+          { "name": "NEEDS_CLARIFICATION", "color": "yellowLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldWICompletionEvidenceUrl",
+      "name": "completion_evidence_url",
+      "type": "url",
+      "description": "URL to uploaded photographic or documentary evidence of completed work"
+    },
+    {
+      "field_id": "fldWICompletionNotes",
+      "name": "completion_notes",
+      "type": "multilineText",
+      "description": "Engineer or contractor notes on the completed work, including any follow-up recommendations"
+    },
+    {
+      "field_id": "fldWISLADueAt",
+      "name": "sla_due_at",
+      "type": "dateTime",
+      "description": "Deadline by which the work item must be resolved according to the applicable SLA",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldWIEscalationLevel",
+      "name": "escalation_level",
+      "type": "number",
+      "description": "Current escalation level (0 = no escalation, increments with each SLA breach interval)",
+      "options": {
+        "precision": 0
+      }
+    },
+    {
+      "field_id": "fldWIBlockedReason",
+      "name": "blocked_reason",
+      "type": "singleLineText",
+      "description": "Reason the work item is currently blocked, populated when transitioning to ON_HOLD state"
+    },
+    {
+      "field_id": "fldWICreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "Timestamp when the work item record was first created",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldWIUpdatedAt",
+      "name": "updated_at",
+      "type": "dateTime",
+      "description": "Timestamp of the most recent update to any field on this record",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldWIClosedAt",
+      "name": "closed_at",
+      "type": "dateTime",
+      "description": "Timestamp when the work item was closed or cancelled",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldWIWhatsAppThread",
+      "name": "whatsapp_thread_id",
+      "type": "singleLineText",
+      "description": "WhatsApp conversation thread identifier linking this work item to its originating chat"
+    },
+    {
+      "field_id": "fldWISourceMessage",
+      "name": "source_message_id",
+      "type": "singleLineText",
+      "description": "WhatsApp message ID of the original message that triggered this work item"
+    },
+    {
+      "field_id": "fldWICostEstimate",
+      "name": "cost_estimate",
+      "type": "currency",
+      "description": "Estimated cost for completing the work, used for budgeting and approval workflows",
+      "options": {
+        "precision": 2,
+        "symbol": "\u00a3"
+      }
+    },
+    {
+      "field_id": "fldWIActualCost",
+      "name": "actual_cost",
+      "type": "currency",
+      "description": "Actual cost incurred for the completed work",
+      "options": {
+        "precision": 2,
+        "symbol": "\u00a3"
+      }
+    },
+    {
+      "field_id": "fldWITimeInState",
+      "name": "time_in_current_state",
+      "type": "formula",
+      "description": "Calculated hours the work item has spent in its current state",
+      "options": {
+        "formula": "DATETIME_DIFF(NOW(), {state_started_at}, 'hours')",
+        "resultType": "number",
+        "resultFormat": {
+          "precision": 1
+        }
+      }
+    },
+    {
+      "field_id": "fldWIIsOverdue",
+      "name": "is_overdue",
+      "type": "formula",
+      "description": "Boolean flag indicating whether the work item has breached its SLA deadline",
+      "options": {
+        "formula": "IF(AND({sla_due_at}, NOW() > {sla_due_at}, {current_state} != 'CLOSED'), TRUE(), FALSE())",
+        "resultType": "boolean"
+      }
+    },
+    {
+      "field_id": "fldWIDaysSinceCreated",
+      "name": "days_since_created",
+      "type": "formula",
+      "description": "Number of calendar days since the work item was created",
+      "options": {
+        "formula": "DATETIME_DIFF(NOW(), {created_at}, 'days')",
+        "resultType": "number",
+        "resultFormat": {
+          "precision": 0
+        }
+      }
+    },
+    {
+      "field_id": "fldWIPriorityScore",
+      "name": "priority_score",
+      "type": "formula",
+      "description": "Composite priority score combining urgency level and escalation count. Used for queue ordering",
+      "options": {
+        "formula": "IF({urgency}='EMERGENCY',100,IF({urgency}='URGENT',75,IF({urgency}='STANDARD',50,25))) + {escalation_level} * 10",
+        "resultType": "number",
+        "resultFormat": {
+          "precision": 0
+        }
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "All Work Items",
+      "type": "grid",
+      "description": "Complete list of all work items across all states",
+      "fields": "all",
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Active Work",
+      "type": "grid",
+      "description": "Work items currently in progress, excluding closed and cancelled items",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "current_state", "operator": "isNoneOf", "value": ["CLOSED", "CANCELLED"] }
+        ]
+      },
+      "sort": [
+        { "field": "priority_score", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Overdue Items",
+      "type": "grid",
+      "description": "Work items that have breached their SLA deadline",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "is_overdue", "operator": "isEqual", "value": true }
+        ]
+      },
+      "sort": [
+        { "field": "sla_due_at", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "By Engineer",
+      "type": "grid",
+      "description": "Work items grouped by assigned engineer for workload management",
+      "group": [
+        { "field": "assigned_engineer_id", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "priority_score", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "RFQ Pipeline",
+      "type": "grid",
+      "description": "Work items routed to external contractors, for managing the request-for-quote pipeline",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "routing_decision", "operator": "isEqual", "value": "EXTERNAL_CONTRACTOR" }
+        ]
+      },
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Emergency Queue",
+      "type": "grid",
+      "description": "Emergency work items requiring immediate attention",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "urgency", "operator": "isEqual", "value": "EMERGENCY" },
+          { "field": "current_state", "operator": "isNoneOf", "value": ["CLOSED", "CANCELLED"] }
+        ]
+      },
+      "sort": [
+        { "field": "created_at", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Kanban Board",
+      "type": "kanban",
+      "description": "Visual kanban board showing work items grouped by their current state",
+      "kanbanFieldId": "fldWICurrentState",
+      "sort": [
+        { "field": "priority_score", "direction": "desc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": ["Sites", "People", "Contractors"],
+    "has_many": ["Quotes", "Payments", "Interaction_Logs", "Errors"]
+  },
+  "field_count": 35,
+  "formula_count": 4,
+  "link_count": 4
+}

@@ -1,0 +1,55 @@
+{
+  "description": "Valid 360dialog webhook payload with interactive button reply (e.g., confirming job completion)",
+  "payload": {
+    "object": "whatsapp_business_account",
+    "entry": [
+      {
+        "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+        "changes": [
+          {
+            "value": {
+              "messaging_product": "whatsapp",
+              "metadata": {
+                "display_phone_number": "447700900001",
+                "phone_number_id": "PHONE_NUMBER_ID"
+              },
+              "contacts": [
+                {
+                  "profile": {
+                    "name": "Tom Bradley"
+                  },
+                  "wa_id": "447700900502"
+                }
+              ],
+              "messages": [
+                {
+                  "from": "447700900502",
+                  "id": "wamid.HBgLNDQ3NzAwOTAwNTAyFQIAERgSMjRFNUVCOTg3NjU0MzIxMAA=",
+                  "timestamp": "1708000100",
+                  "type": "interactive",
+                  "interactive": {
+                    "type": "button_reply",
+                    "button_reply": {
+                      "id": "CONFIRM_COMPLETE",
+                      "title": "Looks good"
+                    }
+                  }
+                }
+              ]
+            },
+            "field": "messages"
+          }
+        ]
+      }
+    ]
+  },
+  "expected_behaviour": {
+    "message_type": "INTERACTIVE",
+    "is_button_reply": true,
+    "button_id": "CONFIRM_COMPLETE",
+    "is_command": true,
+    "command": "CONFIRM_COMPLETE",
+    "should_create_interaction_log": true,
+    "should_handoff_to_scenario_b": true
+  }
+}

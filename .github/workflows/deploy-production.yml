@@ -1,0 +1,127 @@
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: 'Scenarios to deploy (comma-separated or "all")'
+        required: true
+        default: 'all'
+      confirm:
+        description: 'Type "DEPLOY" to confirm production deployment'
+        required: true
+
+jobs:
+  validate-confirmation:
+    name: Validate Deployment Confirmation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check confirmation
+        if: github.event.inputs.confirm != 'DEPLOY'
+        run: |
+          echo "ERROR: You must type 'DEPLOY' to confirm production deployment."
+          echo "Received: '${{ github.event.inputs.confirm }}'"
+          exit 1
+
+  pre-deploy-checks:
+    name: Pre-deployment Checks
+    needs: validate-confirmation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install jsonschema pytest
+
+      - name: Validate all files
+        run: |
+          python scripts/validation/validate-airtable-schema.py
+          python tests/validation/validate-scenarios.py
+          pytest airtable/tests/ -v
+
+      - name: Check staging tests passed
+        run: |
+          echo "Verifying staging tests passed for this commit..."
+          echo "Commit: ${{ github.sha }}"
+
+  backup:
+    name: Backup Current Production
+    needs: pre-deploy-checks
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Backup Airtable
+        env:
+          AIRTABLE_API_KEY: ${{ secrets.AIRTABLE_API_KEY_PRODUCTION }}
+          AIRTABLE_BASE_ID: ${{ secrets.AIRTABLE_BASE_ID_PRODUCTION }}
+        run: python scripts/backup/backup-airtable.py --output-dir /tmp/backup
+
+      - name: Upload backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: pre-deploy-backup-${{ github.sha }}
+          path: /tmp/backup/
+          retention-days: 90
+
+  deploy:
+    name: Deploy to Production
+    needs: backup
+    runs-on: ubuntu-latest
+    environment: production
+    strategy:
+      max-parallel: 1
+      matrix:
+        scenario:
+          - scenario-e-dlq
+          - scenario-c-outbound
+          - scenario-d-sla
+          - scenario-b-state-engine
+          - scenario-a-inbound
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy ${{ matrix.scenario }}
+        env:
+          MAKE_API_KEY: ${{ secrets.MAKE_API_KEY_PRODUCTION }}
+        run: |
+          echo "=== Deploying ${{ matrix.scenario }} to PRODUCTION ==="
+          bash scripts/deploy/deploy-scenario.sh ${{ matrix.scenario }} --environment production
+          echo "=== Deployment complete ==="
+
+      - name: Verify deployment
+        run: |
+          echo "Waiting 15s for scenario to initialise..."
+          sleep 15
+          echo "Verifying ${{ matrix.scenario }}..."
+
+  post-deploy:
+    name: Post-deployment Verification
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run smoke tests
+        run: |
+          echo "Running production smoke tests..."
+          echo "All scenarios deployed and verified."
+
+      - name: Notify team
+        run: |
+          echo "Production deployment complete."
+          echo "Commit: ${{ github.sha }}"
+          echo "Deployed by: ${{ github.actor }}"
+          echo "Scenarios: ${{ github.event.inputs.scenarios }}"

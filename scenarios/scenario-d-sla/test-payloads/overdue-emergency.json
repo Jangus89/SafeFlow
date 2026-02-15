@@ -1,0 +1,53 @@
+{
+  "description": "Emergency-priority work item that has breached the 15-minute response SLA. The item is in ASSIGNED state and overdue by 25 minutes. Should trigger level 1 escalation (nudge assignee) and, if the assignee has not responded, transition to ESCALATED state.",
+  "airtable_record": {
+    "id": "recWI001050",
+    "fields": {
+      "work_item_id": 1050,
+      "title": "Gas smell reported - third floor, Meridian House",
+      "current_state": "ASSIGNED",
+      "urgency": "EMERGENCY",
+      "sla_due_at": "2026-02-15T09:15:00.000Z",
+      "sla_response_due_at": "2026-02-15T09:00:00.000Z",
+      "escalation_level": 0,
+      "assigned_engineer_id": "recENG002ABC",
+      "contractor_id": "",
+      "reported_by": "recTEN001ABC",
+      "site_id": "recSITE001",
+      "discipline_required": "HVAC",
+      "state_started_at": "2026-02-15T08:45:00.000Z",
+      "time_in_current_state": 25,
+      "is_overdue": false,
+      "state_locked": false,
+      "priority_score": 100,
+      "created_at": "2026-02-15T08:45:00.000Z",
+      "updated_at": "2026-02-15T08:45:00.000Z",
+      "state_history": "2026-02-15 08:45:00 | NEW -> ASSESSMENT | New issue triaged by LLM: Gas smell reported | by James Cooper (TENANT)\n2026-02-15 08:45:05 | ASSESSMENT -> ASSIGNED | Auto-assigned to on-call engineer | by System (SYSTEM)",
+      "blocked_reason": ""
+    }
+  },
+  "trigger_context": {
+    "trigger_time": "2026-02-15T09:10:00.000Z",
+    "note": "Scheduled run at 09:10. Item assigned at 08:45, 25 minutes ago. EMERGENCY first escalation threshold is 15 minutes."
+  },
+  "expected_behaviour": {
+    "should_pass_filter": true,
+    "overdue_metrics": {
+      "minutes_overdue": 0,
+      "minutes_in_state": 25,
+      "required_escalation_level": 1,
+      "current_escalation_level": 0,
+      "needs_escalation_increment": true
+    },
+    "nudge_route": "7c - ASSIGNED Overdue",
+    "action": "NUDGE_ASSIGNEE",
+    "escalation_level_route": "17a - Level 0 to 1",
+    "should_update_escalation_level": true,
+    "new_escalation_level": 1,
+    "should_notify_via_scenario_c": true,
+    "notification_type": "ASSIGNMENT_NUDGE",
+    "notification_recipients": ["recENG002ABC"],
+    "should_log_escalation": true,
+    "state_transition": "none (level 1 does not trigger ESCALATED state)"
+  }
+}

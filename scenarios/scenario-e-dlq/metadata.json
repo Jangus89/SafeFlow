@@ -1,0 +1,82 @@
+{
+  "scenario_id": "scenario-e-dlq",
+  "name": "Error Handler / Dead Letter Queue",
+  "version": "1.0.0",
+  "status": "production",
+  "trigger_type": "mixed",
+  "schedule": {
+    "webhook": "Real-time error intake from all scenarios",
+    "daily_digest": {
+      "time": "08:00",
+      "timezone": "Europe/London"
+    }
+  },
+  "dependencies": {
+    "upstream": ["scenario-a-inbound", "scenario-b-state-engine", "scenario-c-outbound", "scenario-d-sla"],
+    "downstream": [],
+    "data_stores": [],
+    "airtable_tables": ["Errors"],
+    "external_apis": ["slack", "email"]
+  },
+  "env_vars": {
+    "MAKE_WEBHOOK_URL_SCENARIO_E": {
+      "description": "This scenario's webhook URL",
+      "required": true
+    },
+    "AIRTABLE_BASE_ID": {
+      "description": "Airtable base ID",
+      "required": true
+    },
+    "AIRTABLE_API_KEY": {
+      "description": "Airtable personal access token",
+      "required": true
+    },
+    "SLACK_WEBHOOK_URL": {
+      "description": "Slack incoming webhook URL for #safeflow-alerts channel",
+      "required": true
+    },
+    "SLACK_WEBHOOK_URL_OPS": {
+      "description": "Slack incoming webhook URL for #safeflow-ops channel (daily digest)",
+      "required": true
+    },
+    "OPS_EMAIL_ADDRESS": {
+      "description": "Operations team email address for critical alerts and daily digest",
+      "required": true
+    },
+    "OPS_EMAIL_FROM": {
+      "description": "From address for outgoing alert emails",
+      "required": true,
+      "default": "safeflow-alerts@example.com"
+    }
+  },
+  "rate_limits": {
+    "slack": "1 message/second per webhook",
+    "airtable": "5 requests/second per base",
+    "email": "varies by provider"
+  },
+  "monitoring": {
+    "success_metric": "Errors received and classified without failure",
+    "error_threshold": "Any DLQ execution failure is critical (check Make.com execution logs directly)",
+    "latency_target": "< 5 seconds for error intake and classification"
+  },
+  "severity_definitions": {
+    "CRITICAL": "Immediate attention required. Data corruption risk or complete scenario failure. Slack + email alert.",
+    "HIGH": "Service degradation. Upstream API failures, persistent errors. Slack alert.",
+    "MEDIUM": "Individual message/record failure. Invalid data, recipient issues. Logged for daily digest.",
+    "LOW": "Transient issues. Rate limits, temporary network errors. Logged only."
+  },
+  "retry_policy": {
+    "max_retries": 3,
+    "backoff": "exponential",
+    "base_delay_seconds": 60,
+    "max_delay_seconds": 480,
+    "retryable_error_types": ["rate_limit", "server_error", "state_lock_conflict", "connection_timeout"]
+  },
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-15",
+      "changes": "Initial error handler with severity classification, Slack and email alerts, auto-retry with exponential backoff, and daily error digest"
+    }
+  ]
+}

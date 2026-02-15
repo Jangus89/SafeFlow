@@ -1,0 +1,49 @@
+{
+  "description": "Enriched payload from Scenario A where an engineer sends 'done' to mark work as complete on an IN_PROGRESS job. Should transition the work item from IN_PROGRESS to VERIFICATION and send a verification request to the tenant.",
+  "payload": {
+    "message": {
+      "id": "wamid.HBgLNDQ3NzAwOTAwNTAyFQIAERgSMkYxRjA2QTUyODdGNkI0MkED",
+      "text": "Done SF-1042 - replaced the tap and tested water pressure, all working now",
+      "type": "text",
+      "media_id": "",
+      "timestamp": "1739530800"
+    },
+    "person": {
+      "id": "recENG001ABC",
+      "phone": "447700900502",
+      "name": "Tom Bradley",
+      "role": "ENGINEER",
+      "site_id": ""
+    },
+    "command": {
+      "is_command": true,
+      "command": "DONE",
+      "job_id": "1042"
+    },
+    "work_item": {
+      "exists": true,
+      "id": "recWI001042",
+      "current_state": "IN_PROGRESS"
+    },
+    "interaction_log_id": "recLOG003ABC",
+    "source_execution_id": "exec_a_20260215_003"
+  },
+  "expected_behaviour": {
+    "intent_route": "4a - Command",
+    "should_call_llm": false,
+    "command_processing": {
+      "command": "DONE",
+      "target_state": "VERIFICATION",
+      "valid_source_states": ["IN_PROGRESS"],
+      "permitted_roles": ["CONTRACTOR", "ENGINEER"],
+      "transition_reason": "Contractor marked work as complete"
+    },
+    "validation_passed": true,
+    "should_acquire_lock": true,
+    "should_persist_state": true,
+    "expected_state": "VERIFICATION",
+    "side_effect": "19 - Verification Required",
+    "should_send_verification_buttons": true,
+    "should_handoff_to_scenario_c": true
+  }
+}

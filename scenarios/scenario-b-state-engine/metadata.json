@@ -1,0 +1,101 @@
+{
+  "scenario_id": "scenario-b-state-engine",
+  "name": "State Engine",
+  "version": "2.0.0",
+  "status": "production",
+  "trigger_type": "webhook",
+  "schedule": null,
+  "dependencies": {
+    "upstream": ["scenario-a-inbound", "scenario-d-sla"],
+    "downstream": ["scenario-c-outbound", "scenario-e-dlq"],
+    "data_stores": [],
+    "airtable_tables": ["Work_Items", "People", "Sites", "Interaction_Logs"],
+    "external_apis": ["anthropic", "xero"]
+  },
+  "env_vars": {
+    "MAKE_WEBHOOK_URL_SCENARIO_B": {
+      "description": "This scenario's webhook URL",
+      "required": true
+    },
+    "MAKE_WEBHOOK_URL_SCENARIO_C": {
+      "description": "Outbound Sender webhook URL",
+      "required": true
+    },
+    "MAKE_WEBHOOK_URL_SCENARIO_E": {
+      "description": "Error Handler / DLQ webhook URL",
+      "required": true
+    },
+    "AIRTABLE_BASE_ID": {
+      "description": "Airtable base ID",
+      "required": true
+    },
+    "AIRTABLE_API_KEY": {
+      "description": "Airtable personal access token",
+      "required": true
+    },
+    "ANTHROPIC_API_KEY": {
+      "description": "Anthropic API key for Claude LLM triage",
+      "required": true
+    },
+    "LLM_MODEL_ID": {
+      "description": "Claude model identifier (e.g. claude-sonnet-4-20250514)",
+      "required": true,
+      "default": "claude-sonnet-4-20250514"
+    },
+    "XERO_API_BASE_URL": {
+      "description": "Xero API base URL",
+      "required": true,
+      "default": "https://api.xero.com"
+    },
+    "XERO_ACCESS_TOKEN": {
+      "description": "Xero OAuth2 access token (managed via refresh flow)",
+      "required": true
+    },
+    "XERO_TENANT_ID": {
+      "description": "Xero tenant (organisation) ID",
+      "required": true
+    },
+    "XERO_EXPENSE_ACCOUNT_CODE": {
+      "description": "Xero account code for contractor expense invoices",
+      "required": true,
+      "default": "300"
+    }
+  },
+  "rate_limits": {
+    "anthropic": "4,000 requests/minute (Tier 2), ~$0.003-0.015 per triage call",
+    "airtable": "5 requests/second per base",
+    "xero": "60 requests/minute per tenant",
+    "make_webhook": "no limit (queued)"
+  },
+  "monitoring": {
+    "success_metric": "State transitions completed without error",
+    "error_threshold": "3% error rate triggers alert",
+    "latency_target": "< 5 seconds end-to-end (LLM triage adds ~2-3 seconds)",
+    "llm_metrics": {
+      "track_confidence_scores": true,
+      "low_confidence_threshold": 0.6,
+      "alert_on_low_confidence": true
+    }
+  },
+  "state_machine": {
+    "total_states": 12,
+    "terminal_states": ["CLOSED", "CANCELLED"],
+    "states_requiring_llm": ["INTAKE", "CLARIFICATION"],
+    "states_with_auto_transitions": {
+      "CLARIFICATION": "Auto-cancel after 48 hours (via Scenario D)",
+      "VERIFICATION": "Auto-close after 72 hours (via Scenario D)"
+    }
+  },
+  "changelog": [
+    {
+      "version": "2.0.0",
+      "date": "2026-02-15",
+      "changes": "Complete 12-state machine with LLM triage, optimistic locking, Xero integration, and comprehensive side effects routing"
+    },
+    {
+      "version": "1.0.0",
+      "date": "2026-01-20",
+      "changes": "Initial state engine with basic command processing and 6-state workflow"
+    }
+  ]
+}

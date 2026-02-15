@@ -1,0 +1,159 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblQuestionBank",
+  "name": "Question_Bank",
+  "description": "Configurable bank of clarification and triage questions used during the intake and assessment phases. Questions are discipline-specific, multilingual (English, Welsh, Polish), and ordered by priority. The LLM selects appropriate questions based on trigger conditions.",
+  "record_count_estimate": "Low volume - tens to low hundreds of question records across all disciplines",
+  "primary_field": "question_text_en",
+  "fields": [
+    {
+      "field_id": "fldQBAutoId",
+      "name": "question_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each question"
+    },
+    {
+      "field_id": "fldQBDiscipline",
+      "name": "discipline",
+      "type": "singleSelect",
+      "description": "Trade discipline this question applies to, matching the work item discipline classification",
+      "options": {
+        "choices": [
+          { "name": "PLUMBING", "color": "blueLight2" },
+          { "name": "ELECTRICAL", "color": "yellowLight2" },
+          { "name": "GAS_SAFE", "color": "redLight2" },
+          { "name": "HVAC", "color": "cyanLight2" },
+          { "name": "LIFT_ENGINEER", "color": "purpleLight2" },
+          { "name": "FIRE_SAFETY", "color": "orangeLight2" },
+          { "name": "GENERAL_MAINTENANCE", "color": "greenLight2" },
+          { "name": "SPECIALIST", "color": "pinkLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldQBTrigger",
+      "name": "trigger_condition",
+      "type": "singleLineText",
+      "description": "Condition expression that determines when this question should be asked (e.g. 'urgency=EMERGENCY', 'llm_confidence<0.70')"
+    },
+    {
+      "field_id": "fldQBTextEn",
+      "name": "question_text_en",
+      "type": "multilineText",
+      "description": "Question text in English"
+    },
+    {
+      "field_id": "fldQBTextCy",
+      "name": "question_text_cy",
+      "type": "multilineText",
+      "description": "Question text in Welsh (Cymraeg)"
+    },
+    {
+      "field_id": "fldQBTextPl",
+      "name": "question_text_pl",
+      "type": "multilineText",
+      "description": "Question text in Polish (Polski)"
+    },
+    {
+      "field_id": "fldQBFollowUp",
+      "name": "follow_up_options",
+      "type": "multilineText",
+      "description": "JSON array of follow-up response options presented to the user as interactive buttons or list items"
+    },
+    {
+      "field_id": "fldQBExpectedField",
+      "name": "expected_data_field",
+      "type": "singleLineText",
+      "description": "Name of the work item field that the answer to this question populates (e.g. 'location_area', 'urgency')"
+    },
+    {
+      "field_id": "fldQBIsActive",
+      "name": "is_active",
+      "type": "checkbox",
+      "description": "Whether this question is currently active and available for use in conversation flows",
+      "options": {
+        "icon": "check",
+        "color": "greenBright",
+        "defaultValue": true
+      }
+    },
+    {
+      "field_id": "fldQBPriority",
+      "name": "priority_order",
+      "type": "number",
+      "description": "Priority order for question sequencing within a discipline. Lower numbers are asked first",
+      "options": {
+        "precision": 0
+      }
+    },
+    {
+      "field_id": "fldQBCreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "Timestamp when the question was created",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldQBUpdatedAt",
+      "name": "updated_at",
+      "type": "dateTime",
+      "description": "Timestamp when the question was last modified",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "All Questions",
+      "type": "grid",
+      "description": "Complete list of all questions in the bank",
+      "fields": "all",
+      "sort": [
+        { "field": "discipline", "direction": "asc" },
+        { "field": "priority_order", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "By Discipline",
+      "type": "grid",
+      "description": "Questions grouped by trade discipline for configuration and review",
+      "group": [
+        { "field": "discipline", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "priority_order", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Active Questions",
+      "type": "grid",
+      "description": "Only currently active questions available for use in conversation flows",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "is_active", "operator": "isEqual", "value": true }
+        ]
+      },
+      "sort": [
+        { "field": "discipline", "direction": "asc" },
+        { "field": "priority_order", "direction": "asc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": [],
+    "referenced_by": ["Work_Items"]
+  },
+  "field_count": 12,
+  "formula_count": 0,
+  "link_count": 0
+}

@@ -1,0 +1,50 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+        files: \.(json)$
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+      - id: check-merge-conflict
+      - id: detect-private-key
+      - id: no-commit-to-branch
+        args: ['--branch', 'main']
+
+  - repo: https://github.com/psf/black
+    rev: 24.2.0
+    hooks:
+      - id: black
+        language_version: python3.11
+        files: \.py$
+
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.0.0
+    hooks:
+      - id: flake8
+        args: ['--max-line-length=120']
+        files: \.py$
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.9.0.6
+    hooks:
+      - id: shellcheck
+        files: \.sh$
+
+  - repo: local
+    hooks:
+      - id: validate-json-schemas
+        name: Validate JSON Schemas
+        entry: python -c "import json,sys,glob;[json.load(open(f)) for f in glob.glob('**/*.json',recursive=True) if '.git' not in f]"
+        language: python
+        files: \.json$
+        pass_filenames: false
+
+      - id: no-secrets
+        name: Check for secrets
+        entry: python -c "import sys,re;files=sys.argv[1:];[sys.exit(1) for f in files for l in open(f) if re.search(r'(sk-ant-|pat[A-Za-z0-9]{14}|xoxb-)',l)]"
+        language: python
+        files: \.(json|py|sh|yml|yaml|env|txt)$

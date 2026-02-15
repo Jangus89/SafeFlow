@@ -1,0 +1,39 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "100234567890",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "442071234567",
+              "phone_number_id": "109876543210"
+            },
+            "contacts": [
+              {
+                "profile": {
+                  "name": "Sarah Mitchell"
+                },
+                "wa_id": "447700900123"
+              }
+            ],
+            "messages": [
+              {
+                "from": "447700900123",
+                "id": "wamid.HBgLNDQ3NzAwOTAwMTIzFQIAERgSMkYxRjA2QTUyODdGNkI0MkEA",
+                "timestamp": "1739523600",
+                "type": "text",
+                "text": {
+                  "body": "Hi, the heating in Unit 4B has stopped working again. It went off around 6am this morning and the office is freezing. Can someone come and look at it today please?"
+                }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

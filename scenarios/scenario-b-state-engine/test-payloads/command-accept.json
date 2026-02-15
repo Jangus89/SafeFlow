@@ -1,0 +1,50 @@
+{
+  "description": "Enriched payload from Scenario A where a contractor accepts a job assignment by pressing the 'Accept Job' interactive button. Should transition the work item from ASSIGNED to ACCEPTED and notify the tenant.",
+  "payload": {
+    "message": {
+      "id": "wamid.HBgLNDQ3NzAwOTAwNjAyFQIAERgSMkYxRjA2QTUyODdGNkI0MkEE",
+      "text": "Accept Job",
+      "type": "interactive",
+      "media_id": "",
+      "timestamp": "1739527200"
+    },
+    "person": {
+      "id": "recCON001ABC",
+      "phone": "447700900602",
+      "name": "Dave Williams",
+      "role": "CONTRACTOR",
+      "site_id": ""
+    },
+    "command": {
+      "is_command": true,
+      "command": "ACCEPT",
+      "job_id": "1042"
+    },
+    "work_item": {
+      "exists": true,
+      "id": "recWI001042",
+      "current_state": "ASSIGNED"
+    },
+    "interaction_log_id": "recLOG004ABC",
+    "source_execution_id": "exec_a_20260215_004"
+  },
+  "expected_behaviour": {
+    "intent_route": "4a - Command",
+    "should_call_llm": false,
+    "command_processing": {
+      "command": "ACCEPT",
+      "target_state": "ACCEPTED",
+      "valid_source_states": ["ASSIGNED"],
+      "permitted_roles": ["CONTRACTOR", "ENGINEER"],
+      "transition_reason": "Assignee accepted the job"
+    },
+    "validation_passed": true,
+    "should_acquire_lock": true,
+    "should_persist_state": true,
+    "expected_state": "ACCEPTED",
+    "side_effect": "17 - Job Accepted",
+    "should_notify_tenant": true,
+    "notification_template": "job_accepted_notification",
+    "should_handoff_to_scenario_c": true
+  }
+}

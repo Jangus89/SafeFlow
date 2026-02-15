@@ -1,0 +1,29 @@
+{
+  "description": "Outbound free-text message notifying a tenant that work has started on their maintenance request. Sent by Scenario B when a work item transitions to IN_PROGRESS. Requires an active 24-hour conversation window.",
+  "payload": {
+    "recipient": {
+      "person_id": "recABC123DEF456",
+      "phone": "447700900123",
+      "name": "Sarah Mitchell"
+    },
+    "message_type": "text",
+    "message": {
+      "text": "Good news! Work has started on your request SF-1044 (Broken cold water tap - ground floor kitchen, Meridian House). We'll let you know once it's been completed."
+    },
+    "work_item_id": "1044",
+    "notification_type": "WORK_STARTED",
+    "source": "STATE_ENGINE"
+  },
+  "expected_behaviour": {
+    "should_resolve_recipient": false,
+    "recipient_phone": "447700900123",
+    "should_pass_dedupe": true,
+    "message_route": "8b - Text Message",
+    "api_endpoint": "https://waba.360dialog.io/v1/messages",
+    "api_body_type": "text",
+    "requires_24h_window": true,
+    "should_create_interaction_log": true,
+    "interaction_log_direction": "OUTBOUND",
+    "delivery_status": "SENT"
+  }
+}

@@ -1,0 +1,220 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblPeople",
+  "name": "People",
+  "description": "All individuals who interact with the SafeFlow platform, including tenants, engineers, supervisors, property managers, administrators, and contractor contacts. Used for identity resolution, notification routing, and communication preferences.",
+  "record_count_estimate": "Medium volume - hundreds to low thousands of people across all sites",
+  "primary_field": "full_name",
+  "fields": [
+    {
+      "field_id": "fldPerAutoId",
+      "name": "person_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each person"
+    },
+    {
+      "field_id": "fldPerFirstName",
+      "name": "first_name",
+      "type": "singleLineText",
+      "description": "Person's first name or given name"
+    },
+    {
+      "field_id": "fldPerLastName",
+      "name": "last_name",
+      "type": "singleLineText",
+      "description": "Person's last name or surname"
+    },
+    {
+      "field_id": "fldPerFullName",
+      "name": "full_name",
+      "type": "formula",
+      "description": "Concatenated full name for display purposes",
+      "options": {
+        "formula": "{first_name} & ' ' & {last_name}",
+        "resultType": "text"
+      }
+    },
+    {
+      "field_id": "fldPerEmail",
+      "name": "email",
+      "type": "email",
+      "description": "Primary email address for notifications and correspondence"
+    },
+    {
+      "field_id": "fldPerPhone",
+      "name": "phone",
+      "type": "phoneNumber",
+      "description": "Primary telephone number in +44 format"
+    },
+    {
+      "field_id": "fldPerWhatsApp",
+      "name": "whatsapp_number",
+      "type": "phoneNumber",
+      "description": "WhatsApp number in +44 format used for automated messaging and notifications"
+    },
+    {
+      "field_id": "fldPerRole",
+      "name": "role",
+      "type": "singleSelect",
+      "description": "Primary role of the person within the SafeFlow system, determining access levels and notification routing",
+      "options": {
+        "choices": [
+          { "name": "TENANT", "color": "blueLight2" },
+          { "name": "ENGINEER", "color": "greenLight2" },
+          { "name": "SUPERVISOR", "color": "tealLight2" },
+          { "name": "PROPERTY_MANAGER", "color": "purpleLight2" },
+          { "name": "ADMIN", "color": "redLight2" },
+          { "name": "CONTRACTOR_CONTACT", "color": "orangeLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldPerSiteId",
+      "name": "site_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the site this person is associated with (e.g. where the tenant resides or the engineer is based)",
+      "options": {
+        "linkedTableId": "tblSites",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldPerUnitNumber",
+      "name": "unit_number",
+      "type": "singleLineText",
+      "description": "Unit, flat, or suite number within the site (primarily for tenants)"
+    },
+    {
+      "field_id": "fldPerIsActive",
+      "name": "is_active",
+      "type": "checkbox",
+      "description": "Whether the person is currently active in the system. Inactive records are retained for audit purposes",
+      "options": {
+        "icon": "check",
+        "color": "greenBright",
+        "defaultValue": true
+      }
+    },
+    {
+      "field_id": "fldPerLanguage",
+      "name": "preferred_language",
+      "type": "singleSelect",
+      "description": "Preferred language for communications and notifications. Used to select appropriate message templates",
+      "options": {
+        "choices": [
+          { "name": "en", "color": "blueLight2" },
+          { "name": "cy", "color": "redLight2" },
+          { "name": "pl", "color": "greenLight2" },
+          { "name": "ro", "color": "yellowLight2" },
+          { "name": "ur", "color": "purpleLight2" },
+          { "name": "bn", "color": "orangeLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldPerNotifPrefs",
+      "name": "notification_preferences",
+      "type": "multilineText",
+      "description": "JSON object defining notification preferences, including channels (whatsapp, email, sms), quiet hours, and digest frequency"
+    },
+    {
+      "field_id": "fldPerCreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "Timestamp when the person record was first created",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldPerLastInteraction",
+      "name": "last_interaction_at",
+      "type": "dateTime",
+      "description": "Timestamp of the most recent interaction (message sent or received) involving this person",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "All People",
+      "type": "grid",
+      "description": "Complete list of all people in the system",
+      "fields": "all",
+      "sort": [
+        { "field": "last_name", "direction": "asc" },
+        { "field": "first_name", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "By Role",
+      "type": "grid",
+      "description": "All people grouped by their role for role-based management",
+      "group": [
+        { "field": "role", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "last_name", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Active Tenants",
+      "type": "grid",
+      "description": "Active tenant records for tenant communication and issue reporting",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "role", "operator": "isEqual", "value": "TENANT" },
+          { "field": "is_active", "operator": "isEqual", "value": true }
+        ]
+      },
+      "sort": [
+        { "field": "last_name", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Engineers",
+      "type": "grid",
+      "description": "All internal engineers available for work item assignment",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "role", "operator": "isEqual", "value": "ENGINEER" },
+          { "field": "is_active", "operator": "isEqual", "value": true }
+        ]
+      },
+      "sort": [
+        { "field": "last_name", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Property Managers",
+      "type": "grid",
+      "description": "Property managers responsible for site oversight and approval workflows",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "role", "operator": "isEqual", "value": "PROPERTY_MANAGER" },
+          { "field": "is_active", "operator": "isEqual", "value": true }
+        ]
+      },
+      "sort": [
+        { "field": "last_name", "direction": "asc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": ["Sites"],
+    "has_many": ["Work_Items", "Interaction_Logs", "Payments"]
+  },
+  "field_count": 15,
+  "formula_count": 1,
+  "link_count": 1
+}

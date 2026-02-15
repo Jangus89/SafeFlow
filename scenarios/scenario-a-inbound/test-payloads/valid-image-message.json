@@ -1,0 +1,52 @@
+{
+  "description": "Valid 360dialog webhook payload with image message and caption",
+  "payload": {
+    "object": "whatsapp_business_account",
+    "entry": [
+      {
+        "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+        "changes": [
+          {
+            "value": {
+              "messaging_product": "whatsapp",
+              "metadata": {
+                "display_phone_number": "447700900001",
+                "phone_number_id": "PHONE_NUMBER_ID"
+              },
+              "contacts": [
+                {
+                  "profile": {
+                    "name": "Sarah Williams"
+                  },
+                  "wa_id": "447700900501"
+                }
+              ],
+              "messages": [
+                {
+                  "from": "447700900501",
+                  "id": "wamid.HBgLNDQ3NzAwOTAwNTAxFQIAERgSMjRFNUVCMTIzNDU2Nzg5MAA=",
+                  "timestamp": "1708000000",
+                  "type": "image",
+                  "image": {
+                    "id": "media_id_123456789",
+                    "mime_type": "image/jpeg",
+                    "sha256": "abc123def456",
+                    "caption": "Water is leaking from the ceiling in the second floor office at Victoria House. It started about an hour ago."
+                  }
+                }
+              ]
+            },
+            "field": "messages"
+          }
+        ]
+      }
+    ]
+  },
+  "expected_behaviour": {
+    "message_type": "IMAGE",
+    "message_text": "Water is leaking from the ceiling in the second floor office at Victoria House. It started about an hour ago.",
+    "media_id": "media_id_123456789",
+    "should_create_interaction_log": true,
+    "should_handoff_to_scenario_b": true
+  }
+}

@@ -1,0 +1,347 @@
+{
+  "name": "Scenario A - Inbound Message Handler",
+  "version": "2.0.0",
+  "description": "Receives WhatsApp messages via 360dialog webhook, parses content, deduplicates, creates interaction logs, and hands off to State Engine",
+  "scheduling": {
+    "type": "instant",
+    "trigger": "webhook"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "name": "Webhook - 360dialog Inbound",
+      "type": "webhook",
+      "provider": "360dialog",
+      "config": {
+        "webhook_url": "{{MAKE_WEBHOOK_URL_SCENARIO_A}}",
+        "method": "POST",
+        "headers": {
+          "D360-API-KEY": "{{360DIALOG_API_KEY}}"
+        },
+        "data_structure": {
+          "contacts": [
+            {
+              "profile": {
+                "name": "string"
+              },
+              "wa_id": "string"
+            }
+          ],
+          "messages": [
+            {
+              "from": "string",
+              "id": "string",
+              "timestamp": "string",
+              "type": "text|image|document|audio|video|interactive|button",
+              "text": {
+                "body": "string"
+              },
+              "image": {
+                "id": "string",
+                "mime_type": "string",
+                "caption": "string"
+              },
+              "interactive": {
+                "type": "string",
+                "button_reply": {
+                  "id": "string",
+                  "title": "string"
+                },
+                "list_reply": {
+                  "id": "string",
+                  "title": "string"
+                }
+              }
+            }
+          ]
+        }
+      },
+      "output": "webhook_payload"
+    },
+    {
+      "id": 2,
+      "name": "Parse Message",
+      "type": "transformer",
+      "description": "Extract and normalise message content from 360dialog payload",
+      "config": {
+        "mappings": {
+          "sender_phone": "{{webhook_payload.messages[0].from}}",
+          "sender_name": "{{webhook_payload.contacts[0].profile.name}}",
+          "message_id": "{{webhook_payload.messages[0].id}}",
+          "message_type": "{{webhook_payload.messages[0].type}}",
+          "message_text": "{{ifempty(webhook_payload.messages[0].text.body, ifempty(webhook_payload.messages[0].image.caption, ifempty(webhook_payload.messages[0].interactive.button_reply.title, webhook_payload.messages[0].interactive.list_reply.title)))}}",
+          "media_id": "{{ifempty(webhook_payload.messages[0].image.id, ifempty(webhook_payload.messages[0].document.id, webhook_payload.messages[0].audio.id))}}",
+          "timestamp": "{{webhook_payload.messages[0].timestamp}}",
+          "is_button_reply": "{{if(webhook_payload.messages[0].type = 'interactive', true, false)}}",
+          "button_id": "{{webhook_payload.messages[0].interactive.button_reply.id}}"
+        }
+      },
+      "output": "parsed_message"
+    },
+    {
+      "id": 3,
+      "name": "Dedupe Check",
+      "type": "data_store_search",
+      "description": "Check if this message_id has already been processed (360dialog can send duplicates)",
+      "config": {
+        "data_store": "{{DS_PROCESSED_MESSAGES}}",
+        "filter": {
+          "message_id": "{{parsed_message.message_id}}"
+        },
+        "max_results": 1
+      },
+      "output": "dedupe_result",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If data store unavailable, continue processing (better to have duplicate than miss message)"
+      }
+    },
+    {
+      "id": 4,
+      "name": "Filter - Skip Duplicates",
+      "type": "filter",
+      "config": {
+        "condition": "{{length(dedupe_result) = 0}}",
+        "fallback": "stop"
+      }
+    },
+    {
+      "id": 5,
+      "name": "Record Message ID",
+      "type": "data_store_add",
+      "description": "Record this message_id to prevent reprocessing",
+      "config": {
+        "data_store": "{{DS_PROCESSED_MESSAGES}}",
+        "record": {
+          "message_id": "{{parsed_message.message_id}}",
+          "processed_at": "{{now}}",
+          "sender": "{{parsed_message.sender_phone}}"
+        },
+        "ttl_hours": 72
+      }
+    },
+    {
+      "id": 6,
+      "name": "Lookup Person",
+      "type": "airtable_search",
+      "description": "Find the person record by WhatsApp number",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "People",
+        "filter_formula": "{{'{whatsapp_number} = \"' + parsed_message.sender_phone + '\"'}}",
+        "max_records": 1
+      },
+      "output": "person_record",
+      "error_handler": {
+        "type": "route",
+        "target_module": 7,
+        "note": "If person not found, create new record"
+      }
+    },
+    {
+      "id": 7,
+      "name": "Router - Known vs Unknown Person",
+      "type": "router",
+      "config": {
+        "routes": [
+          {
+            "name": "Known Person",
+            "condition": "{{length(person_record) > 0}}",
+            "target_module": 9
+          },
+          {
+            "name": "Unknown Person",
+            "condition": "{{length(person_record) = 0}}",
+            "target_module": 8
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "name": "Create Person Record",
+      "type": "airtable_create",
+      "description": "Auto-register unknown sender as new tenant",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "People",
+        "fields": {
+          "first_name": "{{parsed_message.sender_name}}",
+          "whatsapp_number": "{{parsed_message.sender_phone}}",
+          "role": "TENANT",
+          "is_active": true,
+          "created_at": "{{now}}",
+          "last_interaction_at": "{{now}}"
+        }
+      },
+      "output": "new_person_record"
+    },
+    {
+      "id": 9,
+      "name": "Extract Command",
+      "type": "transformer",
+      "description": "Check if message contains a command (done, accept, start, reject, cancel, hold)",
+      "config": {
+        "mappings": {
+          "person_id": "{{ifempty(person_record[0].id, new_person_record.id)}}",
+          "person_role": "{{ifempty(person_record[0].fields.role, 'TENANT')}}",
+          "person_site_id": "{{ifempty(person_record[0].fields.site_id, '')}}",
+          "is_command": "{{if(or(parsed_message.is_button_reply, test(parsed_message.message_text, '(?i)^(done|accept|start|reject|cancel|hold|quote|approve)\\b')), true, false)}}",
+          "command": "{{if(parsed_message.is_button_reply, parsed_message.button_id, if(test(parsed_message.message_text, '(?i)^done\\b'), 'DONE', if(test(parsed_message.message_text, '(?i)^accept\\b'), 'ACCEPT', if(test(parsed_message.message_text, '(?i)^start\\b'), 'START', if(test(parsed_message.message_text, '(?i)^reject\\b'), 'REJECT', if(test(parsed_message.message_text, '(?i)^cancel\\b'), 'CANCEL', if(test(parsed_message.message_text, '(?i)^hold\\b'), 'HOLD', if(test(parsed_message.message_text, '(?i)^quote\\b'), 'QUOTE', if(test(parsed_message.message_text, '(?i)^approve\\b'), 'APPROVE', '')))))))))}}",
+          "job_id_from_text": "{{if(test(parsed_message.message_text, 'SF-\\d+'), first(match(parsed_message.message_text, 'SF-(\\d+)')), '')}}"
+        }
+      },
+      "output": "enriched_message"
+    },
+    {
+      "id": 10,
+      "name": "Find Active Work Item",
+      "type": "airtable_search",
+      "description": "Find existing open work item for this person, or by job reference in message",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Work_Items",
+        "filter_formula": "{{if(enriched_message.job_id_from_text != '', 'AND({work_item_id} = ' + enriched_message.job_id_from_text + ', {current_state} != \"CLOSED\", {current_state} != \"CANCELLED\")', 'AND({reported_by} = \"' + enriched_message.person_id + '\", {current_state} != \"CLOSED\", {current_state} != \"CANCELLED\")')}}",
+        "sort": [
+          {
+            "field": "created_at",
+            "direction": "desc"
+          }
+        ],
+        "max_records": 1
+      },
+      "output": "existing_work_item"
+    },
+    {
+      "id": 11,
+      "name": "Create Interaction Log",
+      "type": "airtable_create",
+      "description": "Log every inbound message",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Interaction_Logs",
+        "fields": {
+          "work_item_id": "{{ifempty(existing_work_item[0].id, '')}}",
+          "person_id": [
+            "{{enriched_message.person_id}}"
+          ],
+          "direction": "INBOUND",
+          "channel": "WHATSAPP",
+          "message_type": "{{upper(parsed_message.message_type)}}",
+          "message_content": "{{parsed_message.message_text}}",
+          "whatsapp_message_id": "{{parsed_message.message_id}}",
+          "media_url": "{{if(parsed_message.media_id, 'https://waba.360dialog.io/v1/media/' + parsed_message.media_id, '')}}",
+          "llm_processed": false,
+          "delivery_status": "DELIVERED",
+          "created_at": "{{now}}",
+          "scenario_execution_id": "{{executionId}}"
+        }
+      },
+      "output": "interaction_log"
+    },
+    {
+      "id": 12,
+      "name": "Handoff to Scenario B",
+      "type": "webhook_call",
+      "description": "Send enriched payload to State Engine for processing",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_B}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-a-inbound",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "message": {
+            "id": "{{parsed_message.message_id}}",
+            "text": "{{parsed_message.message_text}}",
+            "type": "{{parsed_message.message_type}}",
+            "media_id": "{{parsed_message.media_id}}",
+            "timestamp": "{{parsed_message.timestamp}}"
+          },
+          "person": {
+            "id": "{{enriched_message.person_id}}",
+            "phone": "{{parsed_message.sender_phone}}",
+            "name": "{{parsed_message.sender_name}}",
+            "role": "{{enriched_message.person_role}}",
+            "site_id": "{{enriched_message.person_site_id}}"
+          },
+          "command": {
+            "is_command": "{{enriched_message.is_command}}",
+            "command": "{{enriched_message.command}}",
+            "job_id": "{{enriched_message.job_id_from_text}}"
+          },
+          "work_item": {
+            "exists": "{{if(length(existing_work_item) > 0, true, false)}}",
+            "id": "{{ifempty(existing_work_item[0].id, '')}}",
+            "current_state": "{{ifempty(existing_work_item[0].fields.current_state, '')}}"
+          },
+          "interaction_log_id": "{{interaction_log.id}}",
+          "source_execution_id": "{{executionId}}"
+        }
+      },
+      "output": "handoff_response"
+    },
+    {
+      "id": 99,
+      "name": "Global Error Handler",
+      "type": "error_handler",
+      "description": "Catch any unhandled errors and route to DLQ",
+      "config": {
+        "actions": [
+          {
+            "type": "webhook_call",
+            "url": "{{MAKE_WEBHOOK_URL_SCENARIO_E}}",
+            "method": "POST",
+            "body": {
+              "scenario": "SCENARIO_A_INBOUND",
+              "error_type": "{{error.type}}",
+              "error_message": "{{error.message}}",
+              "module_id": "{{error.module_id}}",
+              "module_name": "{{error.module_name}}",
+              "payload": "{{toString(webhook_payload)}}",
+              "execution_id": "{{executionId}}",
+              "timestamp": "{{now}}"
+            }
+          },
+          {
+            "type": "webhook_response",
+            "status_code": 200,
+            "body": {
+              "status": "error_logged"
+            },
+            "note": "Always return 200 to 360dialog to prevent retries"
+          }
+        ]
+      }
+    }
+  ],
+  "connections": [
+    { "from": 1, "to": 2 },
+    { "from": 2, "to": 3 },
+    { "from": 3, "to": 4 },
+    { "from": 4, "to": 5 },
+    { "from": 5, "to": 6 },
+    { "from": 6, "to": 7 },
+    { "from": 7, "to": [8, 9] },
+    { "from": 8, "to": 9 },
+    { "from": 9, "to": 10 },
+    { "from": 10, "to": 11 },
+    { "from": 11, "to": 12 }
+  ],
+  "env_vars": [
+    "MAKE_WEBHOOK_URL_SCENARIO_A",
+    "MAKE_WEBHOOK_URL_SCENARIO_B",
+    "MAKE_WEBHOOK_URL_SCENARIO_E",
+    "360DIALOG_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "AIRTABLE_API_KEY",
+    "DS_PROCESSED_MESSAGES"
+  ],
+  "operations_estimate": {
+    "per_message": 8,
+    "daily_average": 400,
+    "monthly_estimate": 12000
+  }
+}

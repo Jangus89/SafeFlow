@@ -1,0 +1,50 @@
+{
+  "description": "Outbound interactive message asking the tenant to verify whether the completed work is satisfactory. Sent by Scenario B when a work item transitions to VERIFICATION. Includes two reply buttons: 'Looks good' (CONFIRM_COMPLETE) and 'Not resolved' (REOPEN).",
+  "payload": {
+    "recipient": {
+      "person_id": "recABC123DEF456",
+      "phone": "",
+      "name": ""
+    },
+    "message_type": "interactive",
+    "interactive": {
+      "type": "button",
+      "body": {
+        "text": "The contractor has marked job SF-1044 (Broken cold water tap - ground floor kitchen, Meridian House) as complete.\n\nAre you happy with the work?"
+      },
+      "action": {
+        "buttons": [
+          {
+            "type": "reply",
+            "reply": {
+              "id": "CONFIRM_COMPLETE",
+              "title": "Looks good"
+            }
+          },
+          {
+            "type": "reply",
+            "reply": {
+              "id": "REOPEN",
+              "title": "Not resolved"
+            }
+          }
+        ]
+      }
+    },
+    "work_item_id": "1044",
+    "notification_type": "VERIFICATION_REQUEST",
+    "source": "STATE_ENGINE"
+  },
+  "expected_behaviour": {
+    "should_resolve_recipient": true,
+    "recipient_lookup_table": "People",
+    "recipient_lookup_field": "RECORD_ID()",
+    "message_route": "8c - Interactive Message",
+    "api_endpoint": "https://waba.360dialog.io/v1/messages",
+    "api_body_type": "interactive",
+    "requires_24h_window": true,
+    "should_create_interaction_log": true,
+    "interaction_log_direction": "OUTBOUND",
+    "delivery_status": "SENT"
+  }
+}

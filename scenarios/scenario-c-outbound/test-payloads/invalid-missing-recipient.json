@@ -1,0 +1,27 @@
+{
+  "description": "Invalid outbound request with an empty person_id and no phone number. Should fail recipient validation and be routed to Scenario E (DLQ) as a non-retryable error.",
+  "payload": {
+    "recipient": {
+      "person_id": "",
+      "phone": "",
+      "name": ""
+    },
+    "message_type": "text",
+    "message": {
+      "text": "Work has started on your request SF-1045."
+    },
+    "work_item_id": "1045",
+    "notification_type": "WORK_STARTED",
+    "source": "STATE_ENGINE"
+  },
+  "expected_behaviour": {
+    "should_fail_validation": true,
+    "failure_module": 3,
+    "failure_reason": "Recipient could not be resolved or is inactive",
+    "should_log_to_scenario_e": true,
+    "error_severity": "MEDIUM",
+    "retry_eligible": false,
+    "should_not_send_message": true,
+    "should_not_create_interaction_log": true
+  }
+}

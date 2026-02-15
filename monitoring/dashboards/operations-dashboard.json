@@ -1,0 +1,195 @@
+{
+  "dashboard": {
+    "name": "SafeFlow Operations Dashboard",
+    "version": "1.0.0",
+    "refresh_interval_seconds": 300,
+    "panels": [
+      {
+        "id": "messages_per_minute",
+        "title": "Messages Per Minute",
+        "type": "time_series",
+        "description": "Inbound WhatsApp messages processed per minute",
+        "data_source": "airtable",
+        "query": {
+          "table": "Interaction_Logs",
+          "filter": "AND({direction} = 'INBOUND', {created_at} >= DATEADD(NOW(), -1, 'hours'))",
+          "aggregation": "count",
+          "group_by": "minute"
+        },
+        "thresholds": {
+          "warning": 50,
+          "critical": 100
+        },
+        "position": {"row": 0, "col": 0, "width": 6, "height": 4}
+      },
+      {
+        "id": "work_items_by_state",
+        "title": "Work Items by State",
+        "type": "pie_chart",
+        "description": "Current distribution of work items across lifecycle states",
+        "data_source": "airtable",
+        "query": {
+          "table": "Work_Items",
+          "filter": "NOT(OR({current_state} = 'CLOSED', {current_state} = 'CANCELLED'))",
+          "aggregation": "count",
+          "group_by": "current_state"
+        },
+        "colours": {
+          "INTAKE": "#3498db",
+          "CLARIFICATION": "#f39c12",
+          "ASSESSMENT": "#9b59b6",
+          "ASSIGNED": "#2ecc71",
+          "IN_PROGRESS": "#1abc9c",
+          "VERIFICATION": "#e67e22",
+          "PAYMENT_PENDING": "#e74c3c",
+          "ESCALATED": "#c0392b",
+          "ON_HOLD": "#95a5a6",
+          "REOPENED": "#8e44ad"
+        },
+        "position": {"row": 0, "col": 6, "width": 6, "height": 4}
+      },
+      {
+        "id": "sla_compliance",
+        "title": "SLA Compliance Rate",
+        "type": "gauge",
+        "description": "Percentage of work items resolved within SLA",
+        "data_source": "airtable",
+        "query": {
+          "table": "Work_Items",
+          "filter": "{current_state} = 'CLOSED'",
+          "formula": "COUNTIF({is_overdue} = FALSE()) / COUNT({work_item_id}) * 100"
+        },
+        "thresholds": {
+          "good": 90,
+          "warning": 80,
+          "critical": 70
+        },
+        "target": 95,
+        "unit": "%",
+        "position": {"row": 4, "col": 0, "width": 3, "height": 3}
+      },
+      {
+        "id": "error_rate",
+        "title": "Error Rate (Last 24h)",
+        "type": "stat",
+        "description": "Total errors logged in the last 24 hours",
+        "data_source": "airtable",
+        "query": {
+          "table": "Errors",
+          "filter": "AND({created_at} >= DATEADD(NOW(), -24, 'hours'), NOT({resolved}))",
+          "aggregation": "count"
+        },
+        "thresholds": {
+          "good": 10,
+          "warning": 50,
+          "critical": 100
+        },
+        "position": {"row": 4, "col": 3, "width": 3, "height": 3}
+      },
+      {
+        "id": "avg_resolution_time",
+        "title": "Avg Resolution Time (hours)",
+        "type": "stat",
+        "description": "Average time from INTAKE to CLOSED in the last 7 days",
+        "data_source": "airtable",
+        "query": {
+          "table": "Work_Items",
+          "filter": "AND({current_state} = 'CLOSED', {closed_at} >= DATEADD(NOW(), -7, 'days'))",
+          "formula": "AVG(DATETIME_DIFF({closed_at}, {created_at}, 'hours'))"
+        },
+        "unit": "hours",
+        "position": {"row": 4, "col": 6, "width": 3, "height": 3}
+      },
+      {
+        "id": "overdue_items",
+        "title": "Overdue Work Items",
+        "type": "stat",
+        "description": "Number of currently overdue work items",
+        "data_source": "airtable",
+        "query": {
+          "table": "Work_Items",
+          "filter": "AND({is_overdue} = TRUE(), NOT(OR({current_state} = 'CLOSED', {current_state} = 'CANCELLED')))",
+          "aggregation": "count"
+        },
+        "thresholds": {
+          "good": 0,
+          "warning": 5,
+          "critical": 15
+        },
+        "position": {"row": 4, "col": 9, "width": 3, "height": 3}
+      },
+      {
+        "id": "scenario_execution_time",
+        "title": "Scenario Execution Times",
+        "type": "bar_chart",
+        "description": "Average execution time per Make.com scenario",
+        "data_source": "make_com",
+        "query": {
+          "endpoint": "/scenarios/executions",
+          "aggregation": "avg_duration",
+          "group_by": "scenario_name",
+          "period": "last_24h"
+        },
+        "unit": "seconds",
+        "thresholds": {
+          "warning_seconds": 10,
+          "critical_seconds": 30
+        },
+        "position": {"row": 7, "col": 0, "width": 6, "height": 4}
+      },
+      {
+        "id": "llm_accuracy",
+        "title": "LLM Triage Accuracy",
+        "type": "gauge",
+        "description": "Intake triage prompt accuracy based on last evaluation run",
+        "data_source": "file",
+        "query": {
+          "path": "llm-prompts/intake-triage/evaluation-results/latest.json",
+          "field": "overall_accuracy"
+        },
+        "thresholds": {
+          "good": 90,
+          "warning": 85,
+          "critical": 80
+        },
+        "target": 93,
+        "unit": "%",
+        "position": {"row": 7, "col": 6, "width": 3, "height": 4}
+      },
+      {
+        "id": "items_by_urgency",
+        "title": "Active Items by Urgency",
+        "type": "stacked_bar",
+        "description": "Active work items grouped by urgency level",
+        "data_source": "airtable",
+        "query": {
+          "table": "Work_Items",
+          "filter": "NOT(OR({current_state} = 'CLOSED', {current_state} = 'CANCELLED'))",
+          "aggregation": "count",
+          "group_by": "urgency"
+        },
+        "colours": {
+          "EMERGENCY": "#e74c3c",
+          "URGENT": "#f39c12",
+          "STANDARD": "#3498db",
+          "SCHEDULED": "#2ecc71"
+        },
+        "position": {"row": 7, "col": 9, "width": 3, "height": 4}
+      },
+      {
+        "id": "daily_volume",
+        "title": "Daily Message Volume (30 days)",
+        "type": "time_series",
+        "description": "Inbound messages per day over the last 30 days",
+        "data_source": "airtable",
+        "query": {
+          "table": "Interaction_Logs",
+          "filter": "AND({direction} = 'INBOUND', {created_at} >= DATEADD(NOW(), -30, 'days'))",
+          "aggregation": "count",
+          "group_by": "day"
+        },
+        "position": {"row": 11, "col": 0, "width": 12, "height": 4}
+      }
+    ]
+  }
+}

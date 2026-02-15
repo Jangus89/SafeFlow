@@ -1,0 +1,671 @@
+{
+  "name": "Scenario E - Error Handler / Dead Letter Queue",
+  "version": "1.0.0",
+  "description": "Centralised error handler and dead letter queue for the SafeFlow system. Receives error payloads from all other scenarios, parses and classifies errors by severity, persists error records to Airtable, routes critical alerts via Slack and email, queues retryable errors with exponential backoff, and generates a daily error digest for the operations team.",
+  "scheduling": {
+    "type": "mixed",
+    "triggers": [
+      {
+        "type": "webhook",
+        "description": "Real-time error intake from Scenarios A, B, C, and D"
+      },
+      {
+        "type": "scheduled",
+        "interval": "daily",
+        "time": "08:00",
+        "timezone": "Europe/London",
+        "description": "Daily error digest generation"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "id": 1,
+      "name": "Webhook - Error Intake",
+      "type": "webhook",
+      "description": "Receives error payloads from all SafeFlow scenarios. Each error payload includes the source scenario, error type, message, severity, original payload, and retry eligibility.",
+      "config": {
+        "webhook_url": "{{MAKE_WEBHOOK_URL_SCENARIO_E}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "data_structure": {
+          "scenario": "string (SCENARIO_A_INBOUND | SCENARIO_B_STATE_ENGINE | SCENARIO_C_OUTBOUND | SCENARIO_D_SLA)",
+          "error_type": "string",
+          "error_message": "string",
+          "error_status_code": "number (optional)",
+          "module_id": "number",
+          "module_name": "string",
+          "severity": "CRITICAL | HIGH | MEDIUM | LOW",
+          "payload": "string | object",
+          "execution_id": "string",
+          "timestamp": "string (ISO 8601)",
+          "retry_eligible": "boolean",
+          "retry_delay_seconds": "number (optional)",
+          "context": "object (optional - additional error context)"
+        }
+      },
+      "output": "error_payload"
+    },
+    {
+      "id": 2,
+      "name": "Parse Error Details",
+      "type": "transformer",
+      "description": "Normalise and enrich the error payload with calculated fields for severity classification, retry logic, and human-readable summaries.",
+      "config": {
+        "mappings": {
+          "error_id": "{{formatDate(now, 'YYYYMMDD-HHmmss') + '-' + substring(executionId, 0, 8)}}",
+          "scenario": "{{error_payload.scenario}}",
+          "error_type": "{{error_payload.error_type}}",
+          "error_message": "{{error_payload.error_message}}",
+          "error_status_code": "{{ifempty(error_payload.error_status_code, 0)}}",
+          "module_id": "{{error_payload.module_id}}",
+          "module_name": "{{error_payload.module_name}}",
+          "raw_severity": "{{ifempty(error_payload.severity, 'MEDIUM')}}",
+          "payload_string": "{{if(typeof(error_payload.payload) = 'string', error_payload.payload, toString(error_payload.payload))}}",
+          "source_execution_id": "{{error_payload.execution_id}}",
+          "timestamp": "{{ifempty(error_payload.timestamp, now)}}",
+          "retry_eligible": "{{ifempty(error_payload.retry_eligible, false)}}",
+          "retry_delay_seconds": "{{ifempty(error_payload.retry_delay_seconds, 0)}}",
+          "context": "{{ifempty(toString(error_payload.context), '')}}",
+          "human_summary": "{{error_payload.scenario + ' | Module ' + error_payload.module_id + ' (' + error_payload.module_name + '): ' + error_payload.error_message}}"
+        }
+      },
+      "output": "parsed_error"
+    },
+    {
+      "id": 3,
+      "name": "Severity Classifier",
+      "type": "transformer",
+      "description": "Re-evaluate and confirm the error severity based on the error type, source scenario, and context. Override the upstream severity if necessary (e.g., a state engine failure is always CRITICAL regardless of the error type).",
+      "config": {
+        "mappings": {
+          "final_severity": "{{if(parsed_error.scenario = 'SCENARIO_B_STATE_ENGINE' AND (parsed_error.error_type = 'RuntimeError' OR parsed_error.error_type = 'DataError'), 'CRITICAL', if(parsed_error.error_type = 'STATE_LOCK_CONFLICT', 'MEDIUM', if(parsed_error.error_status_code = 429, 'LOW', if(parsed_error.error_status_code >= 500, 'HIGH', if(parsed_error.error_type = 'INVALID_RECIPIENT', 'MEDIUM', parsed_error.raw_severity)))))}}",
+          "severity_reason": "{{if(parsed_error.scenario = 'SCENARIO_B_STATE_ENGINE' AND (parsed_error.error_type = 'RuntimeError' OR parsed_error.error_type = 'DataError'), 'State Engine runtime/data error - potential data corruption', if(parsed_error.error_type = 'STATE_LOCK_CONFLICT', 'Concurrency conflict - will auto-retry', if(parsed_error.error_status_code = 429, 'Rate limit - temporary, will auto-retry', if(parsed_error.error_status_code >= 500, 'Upstream service error - likely transient', if(parsed_error.error_type = 'INVALID_RECIPIENT', 'Recipient data issue - requires manual fix', 'Default classification from source scenario')))))}}",
+          "requires_immediate_alert": "{{if(parsed_error.scenario = 'SCENARIO_B_STATE_ENGINE' AND (parsed_error.error_type = 'RuntimeError' OR parsed_error.error_type = 'DataError'), true, if(parsed_error.raw_severity = 'CRITICAL', true, false))}}",
+          "requires_ops_review": "{{if(parsed_error.raw_severity = 'CRITICAL' OR parsed_error.raw_severity = 'HIGH', true, false)}}"
+        }
+      },
+      "output": "classified_error"
+    },
+    {
+      "id": 4,
+      "name": "Create Error Record",
+      "type": "airtable_create",
+      "description": "Persist the error to the Errors table in Airtable for tracking, investigation, and reporting.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Errors",
+        "fields": {
+          "error_id": "{{parsed_error.error_id}}",
+          "scenario": "{{parsed_error.scenario}}",
+          "error_type": "{{parsed_error.error_type}}",
+          "error_message": "{{parsed_error.error_message}}",
+          "error_status_code": "{{parsed_error.error_status_code}}",
+          "module_id": "{{parsed_error.module_id}}",
+          "module_name": "{{parsed_error.module_name}}",
+          "severity": "{{classified_error.final_severity}}",
+          "severity_reason": "{{classified_error.severity_reason}}",
+          "payload": "{{parsed_error.payload_string}}",
+          "source_execution_id": "{{parsed_error.source_execution_id}}",
+          "dlq_execution_id": "{{executionId}}",
+          "status": "{{if(parsed_error.retry_eligible, 'PENDING_RETRY', 'NEEDS_REVIEW')}}",
+          "retry_eligible": "{{parsed_error.retry_eligible}}",
+          "retry_count": 0,
+          "retry_next_at": "{{if(parsed_error.retry_eligible, addSeconds(now, if(parsed_error.retry_delay_seconds > 0, parsed_error.retry_delay_seconds, 60)), '')}}",
+          "context": "{{parsed_error.context}}",
+          "resolved": false,
+          "resolved_at": "",
+          "resolved_by": "",
+          "resolution_notes": "",
+          "created_at": "{{now}}",
+          "updated_at": "{{now}}"
+        }
+      },
+      "output": "error_record",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If Airtable write fails, continue to alerting. The error details are already in the execution log."
+      }
+    },
+    {
+      "id": 5,
+      "name": "Severity Router",
+      "type": "router",
+      "description": "Route errors to the appropriate alerting channel based on final severity. CRITICAL and HIGH errors trigger immediate Slack and email alerts. MEDIUM errors are logged for daily digest. LOW errors (rate limits) are logged only.",
+      "config": {
+        "routes": [
+          {
+            "id": "5a",
+            "name": "CRITICAL - Immediate Slack + Email",
+            "condition": "{{classified_error.final_severity = 'CRITICAL'}}",
+            "target_module": 6,
+            "description": "Critical errors require immediate attention: Slack alert to #safeflow-alerts + email to operations team"
+          },
+          {
+            "id": "5b",
+            "name": "HIGH - Slack Alert",
+            "condition": "{{classified_error.final_severity = 'HIGH'}}",
+            "target_module": 7,
+            "description": "High-severity errors: Slack alert to #safeflow-alerts"
+          },
+          {
+            "id": "5c",
+            "name": "MEDIUM - Log for Review",
+            "condition": "{{classified_error.final_severity = 'MEDIUM'}}",
+            "target_module": 9,
+            "description": "Medium-severity errors: logged to Airtable, included in daily digest"
+          },
+          {
+            "id": "5d",
+            "name": "LOW - Log Only",
+            "condition": "{{classified_error.final_severity = 'LOW'}}",
+            "target_module": 9,
+            "description": "Low-severity errors (rate limits, transient): logged only"
+          }
+        ]
+      }
+    },
+    {
+      "id": 6,
+      "name": "Alert - Slack Critical",
+      "type": "http_request",
+      "description": "Send a critical error alert to the #safeflow-alerts Slack channel with full error details and a link to the Airtable error record.",
+      "config": {
+        "url": "{{SLACK_WEBHOOK_URL}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "blocks": [
+            {
+              "type": "header",
+              "text": {
+                "type": "plain_text",
+                "text": "CRITICAL: SafeFlow Error",
+                "emoji": true
+              }
+            },
+            {
+              "type": "section",
+              "fields": [
+                { "type": "mrkdwn", "text": "*Scenario:*\n{{parsed_error.scenario}}" },
+                { "type": "mrkdwn", "text": "*Severity:*\n{{classified_error.final_severity}}" },
+                { "type": "mrkdwn", "text": "*Module:*\n{{parsed_error.module_name}} ({{parsed_error.module_id}})" },
+                { "type": "mrkdwn", "text": "*Error Type:*\n{{parsed_error.error_type}}" }
+              ]
+            },
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*Error:*\n```{{parsed_error.error_message}}```"
+              }
+            },
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*Reason:*\n{{classified_error.severity_reason}}"
+              }
+            },
+            {
+              "type": "context",
+              "elements": [
+                {
+                  "type": "mrkdwn",
+                  "text": "Error ID: {{parsed_error.error_id}} | Execution: {{parsed_error.source_execution_id}} | {{parsed_error.timestamp}}"
+                }
+              ]
+            }
+          ]
+        },
+        "timeout_ms": 10000
+      },
+      "output": "slack_critical_result",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If Slack fails, continue to email. Do not recurse errors."
+      },
+      "post_actions": [
+        {
+          "type": "route",
+          "target_module": 8,
+          "description": "Also send email for CRITICAL errors"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Alert - Slack High",
+      "type": "http_request",
+      "description": "Send a high-severity error alert to the #safeflow-alerts Slack channel.",
+      "config": {
+        "url": "{{SLACK_WEBHOOK_URL}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "blocks": [
+            {
+              "type": "header",
+              "text": {
+                "type": "plain_text",
+                "text": "HIGH: SafeFlow Error",
+                "emoji": true
+              }
+            },
+            {
+              "type": "section",
+              "fields": [
+                { "type": "mrkdwn", "text": "*Scenario:*\n{{parsed_error.scenario}}" },
+                { "type": "mrkdwn", "text": "*Module:*\n{{parsed_error.module_name}}" }
+              ]
+            },
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*Error:*\n```{{parsed_error.error_message}}```"
+              }
+            },
+            {
+              "type": "context",
+              "elements": [
+                {
+                  "type": "mrkdwn",
+                  "text": "Error ID: {{parsed_error.error_id}} | {{parsed_error.timestamp}}"
+                }
+              ]
+            }
+          ]
+        },
+        "timeout_ms": 10000
+      },
+      "output": "slack_high_result",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If Slack fails, error is still recorded in Airtable"
+      }
+    },
+    {
+      "id": 8,
+      "name": "Alert - Email Critical",
+      "type": "email",
+      "description": "Send a critical error email to the operations team. Sent in addition to Slack for CRITICAL severity only.",
+      "config": {
+        "to": "{{OPS_EMAIL_ADDRESS}}",
+        "subject": "CRITICAL SafeFlow Error: {{parsed_error.scenario}} - {{parsed_error.module_name}}",
+        "body_html": "<h2>Critical SafeFlow Error</h2><table><tr><td><strong>Error ID:</strong></td><td>{{parsed_error.error_id}}</td></tr><tr><td><strong>Scenario:</strong></td><td>{{parsed_error.scenario}}</td></tr><tr><td><strong>Module:</strong></td><td>{{parsed_error.module_name}} ({{parsed_error.module_id}})</td></tr><tr><td><strong>Error Type:</strong></td><td>{{parsed_error.error_type}}</td></tr><tr><td><strong>Error Message:</strong></td><td>{{parsed_error.error_message}}</td></tr><tr><td><strong>Severity:</strong></td><td>{{classified_error.final_severity}}</td></tr><tr><td><strong>Reason:</strong></td><td>{{classified_error.severity_reason}}</td></tr><tr><td><strong>Timestamp:</strong></td><td>{{parsed_error.timestamp}}</td></tr><tr><td><strong>Execution ID:</strong></td><td>{{parsed_error.source_execution_id}}</td></tr><tr><td><strong>Retry Eligible:</strong></td><td>{{parsed_error.retry_eligible}}</td></tr></table><h3>Original Payload</h3><pre>{{parsed_error.payload_string}}</pre><h3>Context</h3><pre>{{parsed_error.context}}</pre>",
+        "from": "{{OPS_EMAIL_FROM}}",
+        "reply_to": "{{OPS_EMAIL_ADDRESS}}"
+      },
+      "output": "email_result",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If email fails, error is still in Airtable and Slack"
+      }
+    },
+    {
+      "id": 9,
+      "name": "Auto-Retry Router",
+      "type": "router",
+      "description": "Determine whether the error should be queued for automatic retry. Retryable errors include rate limits, server errors, and state lock conflicts.",
+      "config": {
+        "routes": [
+          {
+            "id": "9a",
+            "name": "Retry Eligible",
+            "condition": "{{parsed_error.retry_eligible = true}}",
+            "target_module": 10,
+            "description": "Error is retryable - queue with exponential backoff"
+          },
+          {
+            "id": "9b",
+            "name": "No Retry",
+            "condition": "{{parsed_error.retry_eligible = false}}",
+            "target_module": 12,
+            "description": "Error is not retryable - mark for manual review"
+          }
+        ]
+      }
+    },
+    {
+      "id": 10,
+      "name": "Calculate Retry Delay",
+      "type": "transformer",
+      "description": "Calculate the retry delay using exponential backoff. Base delay is provided by the source scenario or defaults to 60 seconds. Maximum 3 retries with doubling delay.",
+      "config": {
+        "mappings": {
+          "base_delay_seconds": "{{if(parsed_error.retry_delay_seconds > 0, parsed_error.retry_delay_seconds, 60)}}",
+          "retry_count": "{{ifempty(error_record.fields.retry_count, 0)}}",
+          "calculated_delay_seconds": "{{if(parsed_error.retry_delay_seconds > 0, parsed_error.retry_delay_seconds, 60) * power(2, ifempty(error_record.fields.retry_count, 0))}}",
+          "max_retries": 3,
+          "is_exhausted": "{{if(ifempty(error_record.fields.retry_count, 0) >= 3, true, false)}}",
+          "retry_at": "{{addSeconds(now, if(parsed_error.retry_delay_seconds > 0, parsed_error.retry_delay_seconds, 60) * power(2, ifempty(error_record.fields.retry_count, 0)))}}"
+        }
+      },
+      "output": "retry_config"
+    },
+    {
+      "id": 11,
+      "name": "Queue Retry",
+      "type": "airtable_update",
+      "description": "Update the error record with retry scheduling information. The retry will be executed by a separate scheduled scenario or Make.com's built-in retry mechanism.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Errors",
+        "record_id": "{{error_record.id}}",
+        "skip_if": "{{retry_config.is_exhausted}}",
+        "fields": {
+          "status": "{{if(retry_config.is_exhausted, 'RETRY_EXHAUSTED', 'PENDING_RETRY')}}",
+          "retry_count": "{{retry_config.retry_count + 1}}",
+          "retry_next_at": "{{if(retry_config.is_exhausted, '', retry_config.retry_at)}}",
+          "retry_delay_seconds": "{{retry_config.calculated_delay_seconds}}",
+          "updated_at": "{{now}}"
+        }
+      },
+      "output": "retry_result",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If retry queue update fails, the error is still recorded"
+      }
+    },
+    {
+      "id": 12,
+      "name": "Check Retry Exhaustion",
+      "type": "router",
+      "description": "Check if retries have been exhausted. If so, escalate to CRITICAL and send an alert.",
+      "config": {
+        "routes": [
+          {
+            "id": "12a",
+            "name": "Retries Exhausted - Escalate",
+            "condition": "{{retry_config.is_exhausted = true}}",
+            "target_module": 13,
+            "description": "All retry attempts failed. Escalate to operations team."
+          },
+          {
+            "id": "12b",
+            "name": "Complete",
+            "condition": "{{retry_config.is_exhausted = false OR parsed_error.retry_eligible = false}}",
+            "target_module": 14,
+            "description": "Processing complete. Return acknowledgement."
+          }
+        ]
+      }
+    },
+    {
+      "id": 13,
+      "name": "Alert - Retry Exhausted",
+      "type": "http_request",
+      "description": "Send a Slack alert when all retry attempts have been exhausted for a retryable error. This requires manual intervention.",
+      "config": {
+        "url": "{{SLACK_WEBHOOK_URL}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "blocks": [
+            {
+              "type": "header",
+              "text": {
+                "type": "plain_text",
+                "text": "RETRY EXHAUSTED: SafeFlow Error",
+                "emoji": true
+              }
+            },
+            {
+              "type": "section",
+              "fields": [
+                { "type": "mrkdwn", "text": "*Scenario:*\n{{parsed_error.scenario}}" },
+                { "type": "mrkdwn", "text": "*Module:*\n{{parsed_error.module_name}}" },
+                { "type": "mrkdwn", "text": "*Retry Count:*\n{{retry_config.retry_count}}/{{retry_config.max_retries}}" },
+                { "type": "mrkdwn", "text": "*Error Type:*\n{{parsed_error.error_type}}" }
+              ]
+            },
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*Error:*\n```{{parsed_error.error_message}}```\n\nAll automatic retry attempts have been exhausted. Manual intervention is required."
+              }
+            },
+            {
+              "type": "context",
+              "elements": [
+                {
+                  "type": "mrkdwn",
+                  "text": "Error ID: {{parsed_error.error_id}} | {{parsed_error.timestamp}}"
+                }
+              ]
+            }
+          ]
+        },
+        "timeout_ms": 10000
+      },
+      "output": "retry_exhausted_alert",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If Slack fails, error is still in Airtable with RETRY_EXHAUSTED status"
+      }
+    },
+    {
+      "id": 14,
+      "name": "Return Acknowledgement",
+      "type": "webhook_response",
+      "description": "Return a 200 OK response to the calling scenario to acknowledge receipt of the error.",
+      "config": {
+        "status_code": 200,
+        "body": {
+          "status": "error_received",
+          "error_id": "{{parsed_error.error_id}}",
+          "severity": "{{classified_error.final_severity}}",
+          "retry_eligible": "{{parsed_error.retry_eligible}}"
+        }
+      }
+    },
+    {
+      "id": 50,
+      "name": "Daily Digest - Schedule Trigger",
+      "type": "schedule",
+      "description": "Fires once daily at 08:00 Europe/London to generate an error digest for the operations team.",
+      "config": {
+        "interval": "daily",
+        "time": "08:00",
+        "timezone": "Europe/London"
+      },
+      "output": "digest_trigger"
+    },
+    {
+      "id": 51,
+      "name": "Daily Digest - Search Errors",
+      "type": "airtable_search",
+      "description": "Search for all errors from the past 24 hours for the daily digest.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Errors",
+        "filter_formula": "AND({created_at} >= DATEADD(NOW(), -24, 'hours'), {resolved} = FALSE())",
+        "sort": [
+          {
+            "field": "severity",
+            "direction": "asc"
+          },
+          {
+            "field": "created_at",
+            "direction": "desc"
+          }
+        ],
+        "max_records": 200,
+        "fields": [
+          "error_id",
+          "scenario",
+          "error_type",
+          "error_message",
+          "severity",
+          "status",
+          "retry_count",
+          "created_at"
+        ]
+      },
+      "output": "digest_errors"
+    },
+    {
+      "id": 52,
+      "name": "Daily Digest - Aggregate Stats",
+      "type": "transformer",
+      "description": "Calculate summary statistics for the daily error digest.",
+      "config": {
+        "mappings": {
+          "total_errors": "{{length(digest_errors)}}",
+          "critical_count": "{{length(filter(digest_errors, '{{item.fields.severity = \"CRITICAL\"}}'))}}",
+          "high_count": "{{length(filter(digest_errors, '{{item.fields.severity = \"HIGH\"}}'))}}",
+          "medium_count": "{{length(filter(digest_errors, '{{item.fields.severity = \"MEDIUM\"}}'))}}",
+          "low_count": "{{length(filter(digest_errors, '{{item.fields.severity = \"LOW\"}}'))}}",
+          "retry_exhausted_count": "{{length(filter(digest_errors, '{{item.fields.status = \"RETRY_EXHAUSTED\"}}'))}}",
+          "needs_review_count": "{{length(filter(digest_errors, '{{item.fields.status = \"NEEDS_REVIEW\"}}'))}}",
+          "scenario_a_count": "{{length(filter(digest_errors, '{{item.fields.scenario = \"SCENARIO_A_INBOUND\"}}'))}}",
+          "scenario_b_count": "{{length(filter(digest_errors, '{{item.fields.scenario = \"SCENARIO_B_STATE_ENGINE\"}}'))}}",
+          "scenario_c_count": "{{length(filter(digest_errors, '{{item.fields.scenario = \"SCENARIO_C_OUTBOUND\"}}'))}}",
+          "scenario_d_count": "{{length(filter(digest_errors, '{{item.fields.scenario = \"SCENARIO_D_SLA\"}}'))}}"
+        }
+      },
+      "output": "digest_stats"
+    },
+    {
+      "id": 53,
+      "name": "Daily Digest - Send Slack Summary",
+      "type": "http_request",
+      "description": "Send the daily error digest to the #safeflow-ops Slack channel.",
+      "config": {
+        "url": "{{SLACK_WEBHOOK_URL_OPS}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "blocks": [
+            {
+              "type": "header",
+              "text": {
+                "type": "plain_text",
+                "text": "SafeFlow Daily Error Digest"
+              }
+            },
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*{{formatDate(now, 'dddd D MMMM YYYY')}}*\nTotal errors in last 24 hours: *{{digest_stats.total_errors}}*"
+              }
+            },
+            {
+              "type": "section",
+              "fields": [
+                { "type": "mrkdwn", "text": "*By Severity:*\nCRITICAL: {{digest_stats.critical_count}}\nHIGH: {{digest_stats.high_count}}\nMEDIUM: {{digest_stats.medium_count}}\nLOW: {{digest_stats.low_count}}" },
+                { "type": "mrkdwn", "text": "*By Scenario:*\nInbound (A): {{digest_stats.scenario_a_count}}\nState Engine (B): {{digest_stats.scenario_b_count}}\nOutbound (C): {{digest_stats.scenario_c_count}}\nSLA Monitor (D): {{digest_stats.scenario_d_count}}" }
+              ]
+            },
+            {
+              "type": "section",
+              "text": {
+                "type": "mrkdwn",
+                "text": "*Action Required:*\nRetry exhausted: {{digest_stats.retry_exhausted_count}}\nNeeds review: {{digest_stats.needs_review_count}}"
+              }
+            },
+            {
+              "type": "context",
+              "elements": [
+                {
+                  "type": "mrkdwn",
+                  "text": "Generated at {{formatDate(now, 'HH:mm')}} UTC | Covering {{formatDate(addHours(now, -24), 'HH:mm D MMM')}} to {{formatDate(now, 'HH:mm D MMM')}}"
+                }
+              ]
+            }
+          ]
+        },
+        "timeout_ms": 10000
+      },
+      "output": "digest_slack_result",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If digest Slack post fails, do not create a recursive error"
+      }
+    },
+    {
+      "id": 54,
+      "name": "Daily Digest - Send Email Summary",
+      "type": "email",
+      "description": "Send the daily error digest via email to the operations team.",
+      "config": {
+        "to": "{{OPS_EMAIL_ADDRESS}}",
+        "subject": "SafeFlow Daily Error Digest - {{formatDate(now, 'D MMMM YYYY')}} ({{digest_stats.total_errors}} errors)",
+        "body_html": "<h2>SafeFlow Daily Error Digest</h2><p><strong>{{formatDate(now, 'dddd D MMMM YYYY')}}</strong></p><p>Total errors in last 24 hours: <strong>{{digest_stats.total_errors}}</strong></p><h3>By Severity</h3><table border='1' cellpadding='5'><tr><th>Severity</th><th>Count</th></tr><tr><td>CRITICAL</td><td>{{digest_stats.critical_count}}</td></tr><tr><td>HIGH</td><td>{{digest_stats.high_count}}</td></tr><tr><td>MEDIUM</td><td>{{digest_stats.medium_count}}</td></tr><tr><td>LOW</td><td>{{digest_stats.low_count}}</td></tr></table><h3>By Scenario</h3><table border='1' cellpadding='5'><tr><th>Scenario</th><th>Count</th></tr><tr><td>Inbound (A)</td><td>{{digest_stats.scenario_a_count}}</td></tr><tr><td>State Engine (B)</td><td>{{digest_stats.scenario_b_count}}</td></tr><tr><td>Outbound (C)</td><td>{{digest_stats.scenario_c_count}}</td></tr><tr><td>SLA Monitor (D)</td><td>{{digest_stats.scenario_d_count}}</td></tr></table><h3>Action Required</h3><p>Retry exhausted: <strong>{{digest_stats.retry_exhausted_count}}</strong><br/>Needs review: <strong>{{digest_stats.needs_review_count}}</strong></p>",
+        "from": "{{OPS_EMAIL_FROM}}",
+        "reply_to": "{{OPS_EMAIL_ADDRESS}}"
+      },
+      "output": "digest_email_result",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If digest email fails, do not create a recursive error"
+      }
+    },
+    {
+      "id": 99,
+      "name": "Global Error Handler",
+      "type": "error_handler",
+      "description": "Absolute last resort. If this scenario itself fails, log to Make.com execution history only. NEVER recurse by calling this scenario's own webhook.",
+      "config": {
+        "actions": [
+          {
+            "type": "webhook_response",
+            "status_code": 200,
+            "body": {
+              "status": "dlq_internal_error",
+              "note": "The error handler itself encountered an error. Check Make.com execution logs."
+            }
+          }
+        ],
+        "note": "CRITICAL: This handler must NEVER call MAKE_WEBHOOK_URL_SCENARIO_E to avoid infinite recursion. All errors in this scenario are silently logged to Make.com execution history."
+      }
+    }
+  ],
+  "connections": [
+    { "from": 1, "to": 2 },
+    { "from": 2, "to": 3 },
+    { "from": 3, "to": 4 },
+    { "from": 4, "to": 5 },
+    { "from": 5, "to": [6, 7, 9] },
+    { "from": 6, "to": 8 },
+    { "from": [7, 8], "to": 9 },
+    { "from": 9, "to": [10, 14] },
+    { "from": 10, "to": 11 },
+    { "from": 11, "to": 12 },
+    { "from": 12, "to": [13, 14] },
+    { "from": 50, "to": 51 },
+    { "from": 51, "to": 52 },
+    { "from": 52, "to": 53 },
+    { "from": 53, "to": 54 }
+  ],
+  "env_vars": [
+    "MAKE_WEBHOOK_URL_SCENARIO_E",
+    "AIRTABLE_BASE_ID",
+    "AIRTABLE_API_KEY",
+    "SLACK_WEBHOOK_URL",
+    "SLACK_WEBHOOK_URL_OPS",
+    "OPS_EMAIL_ADDRESS",
+    "OPS_EMAIL_FROM"
+  ],
+  "operations_estimate": {
+    "per_error": 5,
+    "daily_average_errors": 10,
+    "daily_error_operations": 50,
+    "daily_digest_operations": 4,
+    "monthly_estimate": 1620,
+    "notes": "Low operation count. Spikes during outages. Daily digest adds 4 operations per day. Error volume varies significantly based on system health."
+  }
+}

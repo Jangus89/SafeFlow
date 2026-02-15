@@ -1,0 +1,98 @@
+{
+  "scenario_id": "scenario-d-sla",
+  "name": "SLA Monitor",
+  "version": "1.0.0",
+  "status": "production",
+  "trigger_type": "scheduled",
+  "schedule": {
+    "interval_minutes": 15,
+    "timezone": "Europe/London",
+    "start_time": "00:00",
+    "runs_per_day": 96
+  },
+  "dependencies": {
+    "upstream": [],
+    "downstream": ["scenario-b-state-engine", "scenario-c-outbound", "scenario-e-dlq"],
+    "data_stores": [],
+    "airtable_tables": ["Work_Items", "People", "Sites", "Interaction_Logs"],
+    "external_apis": []
+  },
+  "env_vars": {
+    "AIRTABLE_BASE_ID": {
+      "description": "Airtable base ID",
+      "required": true
+    },
+    "AIRTABLE_API_KEY": {
+      "description": "Airtable personal access token",
+      "required": true
+    },
+    "MAKE_WEBHOOK_URL_SCENARIO_B": {
+      "description": "State Engine webhook URL for state transitions",
+      "required": true
+    },
+    "MAKE_WEBHOOK_URL_SCENARIO_C": {
+      "description": "Outbound Sender webhook URL for notifications",
+      "required": true
+    },
+    "MAKE_WEBHOOK_URL_SCENARIO_E": {
+      "description": "Error Handler / DLQ webhook URL",
+      "required": true
+    }
+  },
+  "rate_limits": {
+    "airtable": "5 requests/second per base",
+    "make_webhook": "no limit (queued)"
+  },
+  "monitoring": {
+    "success_metric": "Overdue items detected and escalated within one polling cycle",
+    "error_threshold": "Any execution failure triggers alert (SLA monitoring is safety-critical)",
+    "latency_target": "< 30 seconds per complete run"
+  },
+  "sla_tiers": {
+    "EMERGENCY": {
+      "response_minutes": 15,
+      "resolution_minutes": 240,
+      "escalation_intervals_minutes": [15, 30, 60],
+      "description": "Life safety, flooding, gas leak, fire, security breach"
+    },
+    "URGENT": {
+      "response_minutes": 60,
+      "resolution_minutes": 1440,
+      "escalation_intervals_minutes": [60, 120, 240],
+      "description": "No heating, no hot water, lift failure, major leak"
+    },
+    "STANDARD": {
+      "response_minutes": 240,
+      "resolution_minutes": 4320,
+      "escalation_intervals_minutes": [240, 480, 1440],
+      "description": "General repairs, minor plumbing, electrical faults"
+    },
+    "SCHEDULED": {
+      "response_minutes": 1440,
+      "resolution_minutes": 20160,
+      "escalation_intervals_minutes": [1440, 2880, 4320],
+      "description": "Planned maintenance, inspections, cosmetic repairs"
+    }
+  },
+  "auto_transitions": {
+    "CLARIFICATION_timeout": {
+      "from_state": "CLARIFICATION",
+      "to_state": "CANCELLED",
+      "threshold_minutes": 2880,
+      "description": "Auto-cancel after 48 hours with no response"
+    },
+    "VERIFICATION_timeout": {
+      "from_state": "VERIFICATION",
+      "to_state": "CLOSED",
+      "threshold_minutes": 4320,
+      "description": "Auto-close after 72 hours with no response (deemed accepted)"
+    }
+  },
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-15",
+      "changes": "Initial SLA monitor with 4-tier urgency, 3-level escalation, auto-cancel, auto-close, auto-reassignment, and state-specific nudge logic"
+    }
+  ]
+}

@@ -1,82 +1,117 @@
 # Contributing to SafeFlow
 
+Thank you for your interest in contributing to SafeFlow. This document provides guidelines and standards for contributing.
+
 ## Development Workflow
 
-### Making Changes
+1. **Branch from `main`** for all changes
+2. **Create a feature branch** with descriptive name: `feature/scenario-a-retry-logic`
+3. **Make changes** following the code standards below
+4. **Run validation** before committing:
+   ```bash
+   python scripts/validation/validate-airtable-schema.py
+   python tests/validation/validate-scenarios.py
+   ```
+5. **Commit** with conventional commit messages
+6. **Create a Pull Request** using the PR template
 
-1. **Configuration Changes** (prompts, schemas, mappings):
-   - Edit the relevant file in this repository
-   - Run affected tests
-   - Apply the change in the corresponding platform (Make.com, Airtable)
-   - Commit the change with a descriptive message
-
-2. **Prompt Changes**:
-   - Edit the prompt file in `prompts/`
-   - Run prompt regression tests: `pytest tests/prompts/ -v`
-   - Test with real messages in development environment
-   - Monitor classification confidence for 24h after deployment
-   - Update prompt changelog
-
-3. **Make.com Scenario Changes**:
-   - Make changes in Make.com visual editor
-   - Export updated blueprint
-   - Update the corresponding JSON file in `make-scenarios/`
-   - Document the change in commit message
-
-4. **Airtable Schema Changes**:
-   - Make changes in Airtable
-   - Update `airtable/schemas/base-schema.json`
-   - Update any affected Make.com scenarios
-   - Run schema validation: `python scripts/setup/validate_config.py`
-
-### Code Standards
-
-- JSON files: 2-space indentation, sorted keys where logical
-- Python: Follow PEP 8, use type hints for function signatures
-- Markdown: One sentence per line for better git diffs
-- Prompt files: Include version number and changelog
-
-### Commit Messages
-
-Follow conventional commit format:
+## Commit Message Format
 
 ```
-type(scope): description
+<type>(<scope>): <description>
 
 [optional body]
+
+[optional footer]
 ```
 
-Types:
-- `feat` - New feature or workflow
-- `fix` - Bug fix
-- `prompt` - Prompt engineering changes
-- `schema` - Airtable schema changes
-- `docs` - Documentation updates
-- `test` - Test additions or modifications
-- `config` - Configuration changes
-- `refactor` - Workflow restructuring
+### Types
+- `feat`: New feature or capability
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `schema`: Airtable schema changes
+- `scenario`: Make.com scenario changes
+- `prompt`: LLM prompt changes
+- `test`: Test additions or modifications
+- `ci`: CI/CD pipeline changes
+- `refactor`: Code restructuring
+- `chore`: Maintenance tasks
 
-Examples:
+### Scopes
+- `scenario-a`, `scenario-b`, `scenario-c`, `scenario-d`, `scenario-e`
+- `airtable`, `schema`, `migration`
+- `llm`, `intake-triage`, `quote-analysis`
+- `deploy`, `monitoring`, `docs`
+
+### Examples
 ```
-feat(escalation): add level 4 director escalation path
-prompt(classifier): improve emergency detection for gas leaks
-schema(airtable): add Insurance Expiry field to Contractors
-fix(inbound): handle empty message body gracefully
+feat(scenario-b): add auto-reassignment logic for escalated items
+fix(schema): correct formula for time_in_current_state
+prompt(intake-triage): improve emergency detection accuracy
+docs(runbook): add procedure for 360dialog outage
 ```
 
-### Testing Requirements
+## Code Standards
 
-Before deploying any change:
+### Python
+- PEP 8 compliance
+- Type hints on all function signatures
+- Docstrings on all public functions
+- `#!/usr/bin/env python3` shebang on executable scripts
 
-1. Run validation: `python scripts/setup/validate_config.py`
-2. Run affected test suite
-3. Test in development environment with sample messages
-4. Verify no regression in Error Log after deployment
+### JSON
+- Valid JSON (no trailing commas, no comments)
+- 2-space indentation
+- Prettified (not minified)
+- Schema files use consistent field naming
 
-### Security
+### Bash
+- `set -euo pipefail` at the top
+- Quote all variables
+- Use `shellcheck` for linting
 
-- NEVER commit API keys, tokens, or credentials
-- NEVER log message content in monitoring (use reference numbers)
-- Always use `.env` for sensitive configuration
-- Rotate keys every 90 days
-- Report security concerns immediately
+### Markdown
+- ATX-style headers (`#` not `===`)
+- Fenced code blocks with language identifier
+- Tables aligned with pipes
+- UK English spelling
+
+## Testing Requirements
+
+### Before Merging
+- [ ] All JSON files validate (`python tests/validation/validate-scenarios.py`)
+- [ ] Airtable schema validates (`python scripts/validation/validate-airtable-schema.py`)
+- [ ] Migration tests pass (`pytest airtable/tests/`)
+- [ ] No secrets in committed files
+
+### For Prompt Changes
+- [ ] Run evaluation against test cases
+- [ ] Emergency detection accuracy >= 98%
+- [ ] Overall accuracy >= 90%
+- [ ] A/B test if changing production prompt
+
+### For Scenario Changes
+- [ ] Test payloads updated
+- [ ] Metadata.json updated with new version
+- [ ] CHANGELOG.md updated
+- [ ] README.md reflects changes
+
+## Airtable Schema Changes
+
+1. **Never modify `schema.json` directly** for production changes
+2. Create a numbered migration file in `airtable/migrations/`
+3. Update `schema.json` to reflect the post-migration state
+4. Update individual table JSON files
+5. Run schema validation
+6. Document the change in migration README
+
+## Security
+
+- **Never commit** `.env` files, API keys, or credentials
+- **Never include** real tenant data in test fixtures
+- Use placeholder values: `+447700900000` (Ofcom test range)
+- Review `.gitignore` before committing
+
+## Questions?
+
+Open a GitHub Issue with the `question` label.

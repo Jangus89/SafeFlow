@@ -1,0 +1,49 @@
+{
+  "description": "Duplicate message - same message_id as valid-text-message.json. Should be filtered by dedupe check.",
+  "payload": {
+    "object": "whatsapp_business_account",
+    "entry": [
+      {
+        "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+        "changes": [
+          {
+            "value": {
+              "messaging_product": "whatsapp",
+              "metadata": {
+                "display_phone_number": "447700900001",
+                "phone_number_id": "PHONE_NUMBER_ID"
+              },
+              "contacts": [
+                {
+                  "profile": {
+                    "name": "John Smith"
+                  },
+                  "wa_id": "447700900500"
+                }
+              ],
+              "messages": [
+                {
+                  "from": "447700900500",
+                  "id": "wamid.HBgLNDQ3NzAwOTAwNTAwFQIAERgSMjRFNUVCMTIzNDU2Nzg5MAA=",
+                  "timestamp": "1707999900",
+                  "type": "text",
+                  "text": {
+                    "body": "The hot water has stopped working in our office on the third floor of Meridian House. No hot water in the kitchen or the toilets."
+                  }
+                }
+              ]
+            },
+            "field": "messages"
+          }
+        ]
+      }
+    ]
+  },
+  "expected_behaviour": {
+    "should_be_filtered": true,
+    "filter_reason": "Duplicate message_id found in data store",
+    "should_not_create_interaction_log": true,
+    "should_not_handoff_to_scenario_b": true,
+    "should_return_200": true
+  }
+}

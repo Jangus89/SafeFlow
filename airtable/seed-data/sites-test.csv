@@ -1,0 +1,11 @@
+site_name,address_line_1,address_line_2,city,county,postcode,whatsapp_number,site_type,subscription_tier,operating_hours,emergency_contact_number,is_active
+Meridian House,42 Victoria Street,,London,Greater London,SW1H 0TL,+447700900001,OFFICE,PREMIUM,Mon-Fri 07:00-20:00,+447700900100,true
+Kings Court Business Centre,15-17 Kings Road,,Bristol,Bristol,BS1 4EF,+447700900002,MIXED_USE,STANDARD,Mon-Fri 08:00-18:00,+447700900101,true
+The Exchange,100 Queen Street,,Cardiff,Cardiff,CF10 2GE,+447700900003,OFFICE,PREMIUM,Mon-Fri 07:30-19:00,+447700900102,true
+Harbourside Retail Park,Unit 1-12 Harbour Way,,Southampton,Hampshire,SO14 3QR,+447700900004,RETAIL,ENTERPRISE,Mon-Sun 06:00-22:00,+447700900103,true
+Castle Business Park,Building A Castle Way,,Nottingham,Nottinghamshire,NG7 1FW,+447700900005,OFFICE,STANDARD,Mon-Fri 08:00-18:00,+447700900104,true
+Ashton Gate Industrial Estate,Plot 3 Winterstoke Road,,Bristol,Bristol,BS3 2LN,+447700900006,INDUSTRIAL,BASIC,Mon-Fri 06:00-20:00 Sat 08:00-14:00,+447700900105,true
+Victoria House,88 Victoria Road,,Leeds,West Yorkshire,LS1 5AT,+447700900007,OFFICE,PREMIUM,Mon-Fri 07:00-21:00,+447700900106,true
+Riverside Apartments,1-48 Thames Path,,London,Greater London,SE1 2YQ,+447700900008,RESIDENTIAL_BLOCK,ENTERPRISE,24/7,+447700900107,true
+Phoenix Warehouse,Unit 5 Phoenix Way,,Manchester,Greater Manchester,M1 2WD,+447700900009,WAREHOUSE,BASIC,Mon-Sat 07:00-19:00,+447700900108,true
+Crown Chambers,22 Crown Street,,Edinburgh,Edinburgh,EH2 1AJ,+447700900010,OFFICE,STANDARD,Mon-Fri 08:30-17:30,+447700900109,true

@@ -1,2 +1,0 @@
-# Track applied migrations locally (not committed — each env tracks independently)
-.applied_migrations.json

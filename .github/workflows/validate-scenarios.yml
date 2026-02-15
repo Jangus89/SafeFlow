@@ -1,0 +1,115 @@
+name: Validate Scenarios
+
+on:
+  pull_request:
+    paths:
+      - 'scenarios/**'
+      - 'airtable/schema/**'
+  push:
+    branches: [main, develop]
+    paths:
+      - 'scenarios/**'
+      - 'airtable/schema/**'
+
+jobs:
+  validate-json:
+    name: Validate JSON Files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install jsonschema pytest
+
+      - name: Validate scenario blueprints
+        run: |
+          python -c "
+          import json, glob, sys
+          errors = []
+          for f in glob.glob('scenarios/**/blueprint.json', recursive=True):
+              try:
+                  with open(f) as fh:
+                      data = json.load(fh)
+                  required = ['name', 'version', 'modules']
+                  for key in required:
+                      if key not in data:
+                          errors.append(f'{f}: missing required key \"{key}\"')
+                  print(f'PASS: {f}')
+              except json.JSONDecodeError as e:
+                  errors.append(f'{f}: invalid JSON - {e}')
+          if errors:
+              print('\nERRORS:')
+              for e in errors:
+                  print(f'  - {e}')
+              sys.exit(1)
+          print(f'\nAll scenario blueprints valid.')
+          "
+
+      - name: Validate metadata files
+        run: |
+          python -c "
+          import json, glob, sys
+          errors = []
+          for f in glob.glob('scenarios/**/metadata.json', recursive=True):
+              try:
+                  with open(f) as fh:
+                      data = json.load(fh)
+                  required = ['scenario_id', 'name', 'version']
+                  for key in required:
+                      if key not in data:
+                          errors.append(f'{f}: missing required key \"{key}\"')
+                  print(f'PASS: {f}')
+              except json.JSONDecodeError as e:
+                  errors.append(f'{f}: invalid JSON - {e}')
+          if errors:
+              for e in errors:
+                  print(f'ERROR: {e}')
+              sys.exit(1)
+          print('All metadata files valid.')
+          "
+
+      - name: Validate test payloads
+        run: |
+          python -c "
+          import json, glob, sys
+          errors = []
+          for f in glob.glob('scenarios/**/test-payloads/*.json', recursive=True):
+              try:
+                  with open(f) as fh:
+                      json.load(fh)
+                  print(f'PASS: {f}')
+              except json.JSONDecodeError as e:
+                  errors.append(f'{f}: invalid JSON - {e}')
+          if errors:
+              for e in errors:
+                  print(f'ERROR: {e}')
+              sys.exit(1)
+          print('All test payloads valid.')
+          "
+
+      - name: Validate Airtable schema
+        run: python scripts/validation/validate-airtable-schema.py
+
+  validate-structure:
+    name: Validate Repository Structure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check scenario completeness
+        run: |
+          for scenario in scenario-a-inbound scenario-b-state-engine scenario-c-outbound scenario-d-sla scenario-e-dlq; do
+            echo "Checking scenarios/$scenario..."
+            test -f "scenarios/$scenario/blueprint.json" || (echo "MISSING: blueprint.json" && exit 1)
+            test -f "scenarios/$scenario/metadata.json" || (echo "MISSING: metadata.json" && exit 1)
+            test -f "scenarios/$scenario/README.md" || (echo "MISSING: README.md" && exit 1)
+            test -f "scenarios/$scenario/CHANGELOG.md" || (echo "MISSING: CHANGELOG.md" && exit 1)
+            test -d "scenarios/$scenario/test-payloads" || (echo "MISSING: test-payloads/" && exit 1)
+            echo "  PASS"
+          done
+          echo "All scenarios complete."

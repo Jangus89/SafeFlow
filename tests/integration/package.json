@@ -1,0 +1,18 @@
+{
+  "name": "safeflow-integration-tests",
+  "version": "1.0.0",
+  "description": "Integration tests for SafeFlow WhatsApp FM system",
+  "private": true,
+  "scripts": {
+    "test": "mocha --timeout 30000 --exit '**/*.js'",
+    "test:intake": "mocha --timeout 30000 --exit --grep 'Intake'",
+    "test:rfq": "mocha --timeout 30000 --exit --grep 'RFQ'",
+    "test:sla": "mocha --timeout 30000 --exit --grep 'SLA'"
+  },
+  "dependencies": {
+    "axios": "^1.6.0",
+    "chai": "^4.3.0",
+    "mocha": "^10.2.0",
+    "dotenv": "^16.3.0"
+  }
+}

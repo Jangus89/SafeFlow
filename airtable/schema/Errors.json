@@ -1,0 +1,215 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblErrors",
+  "name": "Errors",
+  "description": "Centralised error tracking for all Make.com scenario executions (Scenarios A through E). Captures severity, stack traces, retry status, and resolution details to support debugging, monitoring, and incident management.",
+  "record_count_estimate": "Variable volume - ideally low, but spikes during incidents or integration failures",
+  "primary_field": "error_id",
+  "fields": [
+    {
+      "field_id": "fldErrAutoId",
+      "name": "error_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each error record"
+    },
+    {
+      "field_id": "fldErrScenario",
+      "name": "scenario_name",
+      "type": "singleSelect",
+      "description": "The Make.com scenario where the error occurred",
+      "options": {
+        "choices": [
+          { "name": "SCENARIO_A", "color": "blueLight2" },
+          { "name": "SCENARIO_B", "color": "greenLight2" },
+          { "name": "SCENARIO_C", "color": "yellowLight2" },
+          { "name": "SCENARIO_D", "color": "purpleLight2" },
+          { "name": "SCENARIO_E", "color": "cyanLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldErrSeverity",
+      "name": "severity",
+      "type": "singleSelect",
+      "description": "Severity level of the error, determining alerting thresholds and response urgency",
+      "options": {
+        "choices": [
+          { "name": "CRITICAL", "color": "redBright" },
+          { "name": "HIGH", "color": "orangeBright" },
+          { "name": "MEDIUM", "color": "yellowBright" },
+          { "name": "LOW", "color": "grayLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldErrType",
+      "name": "error_type",
+      "type": "singleLineText",
+      "description": "Classification of the error (e.g. API_TIMEOUT, VALIDATION_ERROR, RATE_LIMIT, AUTH_FAILURE, DATA_INTEGRITY)"
+    },
+    {
+      "field_id": "fldErrMessage",
+      "name": "error_message",
+      "type": "singleLineText",
+      "description": "Human-readable error message describing what went wrong"
+    },
+    {
+      "field_id": "fldErrStackTrace",
+      "name": "stack_trace",
+      "type": "multilineText",
+      "description": "Full stack trace or execution path from the Make.com scenario for debugging"
+    },
+    {
+      "field_id": "fldErrWorkItem",
+      "name": "work_item_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the work item that was being processed when the error occurred, if applicable",
+      "options": {
+        "linkedTableId": "tblWorkItems",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldErrPayload",
+      "name": "payload",
+      "type": "multilineText",
+      "description": "JSON snapshot of the data payload being processed when the error occurred, for debugging and replay"
+    },
+    {
+      "field_id": "fldErrRetryCount",
+      "name": "retry_count",
+      "type": "number",
+      "description": "Number of retry attempts that have been made for this operation",
+      "options": {
+        "precision": 0
+      }
+    },
+    {
+      "field_id": "fldErrMaxRetries",
+      "name": "max_retries",
+      "type": "number",
+      "description": "Maximum number of retries allowed before the error is escalated",
+      "options": {
+        "precision": 0
+      }
+    },
+    {
+      "field_id": "fldErrResolved",
+      "name": "resolved",
+      "type": "checkbox",
+      "description": "Whether this error has been resolved",
+      "options": {
+        "icon": "check",
+        "color": "greenBright"
+      }
+    },
+    {
+      "field_id": "fldErrResolvedAt",
+      "name": "resolved_at",
+      "type": "dateTime",
+      "description": "Timestamp when the error was marked as resolved",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldErrResolvedBy",
+      "name": "resolved_by",
+      "type": "singleLineText",
+      "description": "Name or identifier of the person who resolved the error"
+    },
+    {
+      "field_id": "fldErrResolutionNotes",
+      "name": "resolution_notes",
+      "type": "multilineText",
+      "description": "Notes describing how the error was resolved, including any corrective actions taken"
+    },
+    {
+      "field_id": "fldErrCreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "Timestamp when the error was first recorded",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "All Errors",
+      "type": "grid",
+      "description": "Complete list of all error records",
+      "fields": "all",
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Unresolved",
+      "type": "grid",
+      "description": "All errors that have not yet been resolved, prioritised by severity",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "resolved", "operator": "isEqual", "value": false }
+        ]
+      },
+      "sort": [
+        { "field": "severity", "direction": "asc" },
+        { "field": "created_at", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Critical and High",
+      "type": "grid",
+      "description": "Only critical and high severity errors requiring urgent attention",
+      "filter": {
+        "conjunction": "or",
+        "conditions": [
+          { "field": "severity", "operator": "isEqual", "value": "CRITICAL" },
+          { "field": "severity", "operator": "isEqual", "value": "HIGH" }
+        ]
+      },
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "By Scenario",
+      "type": "grid",
+      "description": "Errors grouped by the Make.com scenario where they occurred, for pattern analysis",
+      "group": [
+        { "field": "scenario_name", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Last 24 Hours",
+      "type": "grid",
+      "description": "Errors created in the last 24 hours for real-time monitoring",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "created_at", "operator": "isWithin", "value": { "quantity": 24, "unit": "hours" } }
+        ]
+      },
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": ["Work_Items"]
+  },
+  "field_count": 15,
+  "formula_count": 0,
+  "link_count": 1
+}

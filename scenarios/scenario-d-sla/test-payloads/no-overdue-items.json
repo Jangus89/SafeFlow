@@ -1,0 +1,24 @@
+{
+  "description": "Scenario where the scheduled run finds no overdue or at-risk work items. The Airtable search returns zero results. The scenario should exit silently at the Filter module without sending any notifications or making any state changes.",
+  "airtable_query_result": {
+    "records": [],
+    "total_count": 0
+  },
+  "trigger_context": {
+    "trigger_time": "2026-02-15T03:00:00.000Z",
+    "note": "Scheduled run at 03:00 (quiet period). No work items are overdue or approaching SLA breach."
+  },
+  "expected_behaviour": {
+    "should_execute_search": true,
+    "search_returns_results": false,
+    "should_stop_at_filter": true,
+    "filter_module": 3,
+    "should_not_iterate": true,
+    "should_not_send_notifications": true,
+    "should_not_update_airtable": true,
+    "should_not_call_scenario_b": true,
+    "should_not_call_scenario_c": true,
+    "total_operations": 2,
+    "note": "Only 2 operations consumed: schedule trigger + Airtable search. This is the expected behaviour for quiet periods."
+  }
+}

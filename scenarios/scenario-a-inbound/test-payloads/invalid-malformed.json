@@ -1,0 +1,36 @@
+{
+  "description": "Malformed webhook payload - missing required fields. Should be handled gracefully.",
+  "payload": {
+    "object": "whatsapp_business_account",
+    "entry": [
+      {
+        "id": "WHATSAPP_BUSINESS_ACCOUNT_ID",
+        "changes": [
+          {
+            "value": {
+              "messaging_product": "whatsapp",
+              "metadata": {
+                "display_phone_number": "447700900001"
+              },
+              "messages": [
+                {
+                  "from": "447700900503",
+                  "type": "text"
+                }
+              ]
+            },
+            "field": "messages"
+          }
+        ]
+      }
+    ]
+  },
+  "expected_behaviour": {
+    "should_error": true,
+    "error_type": "MALFORMED_PAYLOAD",
+    "missing_fields": ["messages[0].id", "messages[0].timestamp", "messages[0].text.body", "contacts"],
+    "should_log_to_scenario_e": true,
+    "should_return_200": true,
+    "note": "Always return 200 to 360dialog to prevent infinite retries"
+  }
+}

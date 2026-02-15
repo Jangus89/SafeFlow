@@ -1,0 +1,170 @@
+{
+  "alert_rules": {
+    "version": "1.0.0",
+    "notification_channels": {
+      "slack": {
+        "webhook_url": "{{SLACK_WEBHOOK_URL}}",
+        "channel": "#safeflow-alerts"
+      },
+      "email": {
+        "recipients": ["{{ALERT_EMAIL}}"],
+        "from": "alerts@safeflow.io"
+      },
+      "pagerduty": {
+        "integration_key": "{{PAGERDUTY_KEY}}",
+        "severity_mapping": {
+          "CRITICAL": "critical",
+          "HIGH": "error",
+          "MEDIUM": "warning",
+          "LOW": "info"
+        }
+      }
+    },
+    "rules": [
+      {
+        "id": "high_error_rate",
+        "name": "High Error Rate",
+        "description": "More than 50 errors logged in the last hour",
+        "severity": "CRITICAL",
+        "condition": {
+          "table": "Errors",
+          "filter": "{created_at} >= DATEADD(NOW(), -1, 'hours')",
+          "threshold": 50,
+          "operator": ">"
+        },
+        "channels": ["slack", "email", "pagerduty"],
+        "cooldown_minutes": 30,
+        "auto_resolve": true
+      },
+      {
+        "id": "sla_compliance_low",
+        "name": "SLA Compliance Below 80%",
+        "description": "Overall SLA compliance has dropped below 80%",
+        "severity": "HIGH",
+        "condition": {
+          "metric": "sla_compliance_rate",
+          "threshold": 80,
+          "operator": "<",
+          "unit": "%"
+        },
+        "channels": ["slack", "email"],
+        "cooldown_minutes": 60,
+        "auto_resolve": true
+      },
+      {
+        "id": "scenario_failure",
+        "name": "Scenario Execution Failure",
+        "description": "A Make.com scenario has failed execution",
+        "severity": "HIGH",
+        "condition": {
+          "table": "Errors",
+          "filter": "AND({severity} = 'CRITICAL', {created_at} >= DATEADD(NOW(), -15, 'minutes'))",
+          "threshold": 1,
+          "operator": ">="
+        },
+        "channels": ["slack", "pagerduty"],
+        "cooldown_minutes": 15,
+        "auto_resolve": false
+      },
+      {
+        "id": "emergency_unactioned",
+        "name": "Emergency Work Item Unactioned",
+        "description": "An emergency work item has not been assigned within 15 minutes",
+        "severity": "CRITICAL",
+        "condition": {
+          "table": "Work_Items",
+          "filter": "AND({urgency} = 'EMERGENCY', {current_state} = 'INTAKE', DATETIME_DIFF(NOW(), {created_at}, 'minutes') > 15)",
+          "threshold": 1,
+          "operator": ">="
+        },
+        "channels": ["slack", "email", "pagerduty"],
+        "cooldown_minutes": 10,
+        "auto_resolve": true
+      },
+      {
+        "id": "scenario_slow",
+        "name": "Scenario Performance Degradation",
+        "description": "Scenario execution time exceeds 30 seconds",
+        "severity": "MEDIUM",
+        "condition": {
+          "metric": "scenario_avg_execution_time",
+          "threshold": 30,
+          "operator": ">",
+          "unit": "seconds"
+        },
+        "channels": ["slack"],
+        "cooldown_minutes": 60,
+        "auto_resolve": true
+      },
+      {
+        "id": "llm_accuracy_drop",
+        "name": "LLM Accuracy Drop",
+        "description": "LLM triage accuracy has dropped below 85%",
+        "severity": "HIGH",
+        "condition": {
+          "metric": "llm_overall_accuracy",
+          "threshold": 85,
+          "operator": "<",
+          "unit": "%"
+        },
+        "channels": ["slack", "email"],
+        "cooldown_minutes": 1440,
+        "auto_resolve": true
+      },
+      {
+        "id": "overdue_items_high",
+        "name": "High Number of Overdue Items",
+        "description": "More than 15 work items are currently overdue",
+        "severity": "HIGH",
+        "condition": {
+          "table": "Work_Items",
+          "filter": "AND({is_overdue} = TRUE(), NOT(OR({current_state} = 'CLOSED', {current_state} = 'CANCELLED')))",
+          "threshold": 15,
+          "operator": ">"
+        },
+        "channels": ["slack", "email"],
+        "cooldown_minutes": 120,
+        "auto_resolve": true
+      },
+      {
+        "id": "whatsapp_delivery_failures",
+        "name": "WhatsApp Delivery Failures",
+        "description": "More than 10 failed message deliveries in the last hour",
+        "severity": "MEDIUM",
+        "condition": {
+          "table": "Interaction_Logs",
+          "filter": "AND({delivery_status} = 'FAILED', {created_at} >= DATEADD(NOW(), -1, 'hours'))",
+          "threshold": 10,
+          "operator": ">"
+        },
+        "channels": ["slack"],
+        "cooldown_minutes": 60,
+        "auto_resolve": true
+      },
+      {
+        "id": "backup_stale",
+        "name": "Airtable Backup Stale",
+        "description": "No successful Airtable backup in the last 25 hours",
+        "severity": "MEDIUM",
+        "condition": {
+          "metric": "last_backup_age_hours",
+          "threshold": 25,
+          "operator": ">",
+          "unit": "hours"
+        },
+        "channels": ["slack", "email"],
+        "cooldown_minutes": 1440,
+        "auto_resolve": true
+      },
+      {
+        "id": "daily_digest",
+        "name": "Daily Operations Digest",
+        "description": "Daily summary of system health and metrics",
+        "severity": "LOW",
+        "schedule": "0 9 * * *",
+        "channels": ["email"],
+        "template": "daily_digest"
+      }
+    ]
+  }
+}

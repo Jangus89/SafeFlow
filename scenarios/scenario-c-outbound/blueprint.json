@@ -1,0 +1,497 @@
+{
+  "name": "Scenario C - Outbound Message Sender",
+  "version": "1.0.0",
+  "description": "Outbound WhatsApp message dispatcher. Receives notification requests from Scenario B (State Engine) and Scenario D (SLA Monitor), resolves recipient details, deduplicates recent messages, routes by message type (template, text, interactive), sends via the 360dialog API, logs all interactions to Airtable, and handles delivery errors with automatic retry.",
+  "scheduling": {
+    "type": "instant",
+    "trigger": "webhook"
+  },
+  "modules": [
+    {
+      "id": 1,
+      "name": "Webhook - Outbound Request",
+      "type": "webhook",
+      "description": "Receives outbound notification requests from Scenario B and Scenario D. Validates the X-Source-Scenario header to identify the calling scenario.",
+      "config": {
+        "webhook_url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "string",
+          "X-Execution-Id": "string"
+        },
+        "data_structure": {
+          "recipient": {
+            "person_id": "string",
+            "phone": "string (optional - resolved from People table if empty)",
+            "name": "string (optional - resolved from People table if empty)"
+          },
+          "message_type": "template|text|interactive",
+          "template": {
+            "name": "string",
+            "language": "string",
+            "components": "array"
+          },
+          "message": {
+            "text": "string"
+          },
+          "interactive": {
+            "type": "button|list",
+            "body": {
+              "text": "string"
+            },
+            "action": {
+              "buttons": "array",
+              "sections": "array"
+            }
+          },
+          "work_item_id": "string",
+          "notification_type": "string",
+          "source": "string",
+          "additional_recipients": "array (optional)"
+        }
+      },
+      "output": "outbound_request"
+    },
+    {
+      "id": 2,
+      "name": "Load Recipient Details",
+      "type": "airtable_search",
+      "description": "Resolve the recipient's WhatsApp phone number and name from the People table using person_id. Skipped if phone number is already provided in the request.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "People",
+        "filter_formula": "{{'{RECORD_ID()} = \"' + outbound_request.recipient.person_id + '\"'}}",
+        "skip_if": "{{if(outbound_request.recipient.phone != '', true, false)}}",
+        "max_records": 1,
+        "fields": [
+          "first_name",
+          "last_name",
+          "whatsapp_number",
+          "role",
+          "is_active",
+          "preferred_language"
+        ]
+      },
+      "output": "recipient_record",
+      "error_handler": {
+        "type": "route",
+        "target_module": 99,
+        "note": "Cannot send a message without a valid recipient"
+      }
+    },
+    {
+      "id": 3,
+      "name": "Validate Recipient",
+      "type": "filter",
+      "description": "Ensure the recipient has a valid WhatsApp number and is an active user. Reject messages to inactive or unresolvable recipients.",
+      "config": {
+        "condition": "{{if(outbound_request.recipient.phone != '', outbound_request.recipient.phone != '', if(length(recipient_record) > 0, recipient_record[0].fields.whatsapp_number != '' AND recipient_record[0].fields.is_active = true, false))}}",
+        "fallback": "stop",
+        "fallback_action": {
+          "type": "webhook_call",
+          "url": "{{MAKE_WEBHOOK_URL_SCENARIO_E}}",
+          "method": "POST",
+          "body": {
+            "scenario": "SCENARIO_C_OUTBOUND",
+            "error_type": "INVALID_RECIPIENT",
+            "error_message": "Recipient could not be resolved or is inactive",
+            "severity": "MEDIUM",
+            "payload": "{{toString(outbound_request)}}",
+            "execution_id": "{{executionId}}",
+            "timestamp": "{{now}}",
+            "retry_eligible": false
+          }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "name": "Resolve Recipient Fields",
+      "type": "transformer",
+      "description": "Consolidate recipient details from the request and the People table lookup into a single object for downstream use.",
+      "config": {
+        "mappings": {
+          "phone": "{{ifempty(outbound_request.recipient.phone, recipient_record[0].fields.whatsapp_number)}}",
+          "name": "{{ifempty(outbound_request.recipient.name, ifempty(recipient_record[0].fields.first_name, 'there'))}}",
+          "person_id": "{{outbound_request.recipient.person_id}}",
+          "language": "{{ifempty(recipient_record[0].fields.preferred_language, 'en_GB')}}"
+        }
+      },
+      "output": "resolved_recipient"
+    },
+    {
+      "id": 5,
+      "name": "Dedupe Check - Recent Messages",
+      "type": "data_store_search",
+      "description": "Prevent sending duplicate notifications to the same recipient for the same work item within a 5-minute window. Checks the DS_OUTBOUND_DEDUPE data store.",
+      "config": {
+        "data_store": "{{DS_OUTBOUND_DEDUPE}}",
+        "filter": {
+          "dedupe_key": "{{resolved_recipient.phone + '_' + outbound_request.work_item_id + '_' + outbound_request.notification_type}}"
+        },
+        "max_results": 1
+      },
+      "output": "dedupe_result",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If dedupe store unavailable, proceed with sending (better to duplicate than miss a notification)"
+      }
+    },
+    {
+      "id": 6,
+      "name": "Filter - Skip Duplicates",
+      "type": "filter",
+      "description": "Stop execution if an identical notification was sent within the last 5 minutes",
+      "config": {
+        "condition": "{{length(dedupe_result) = 0}}",
+        "fallback": "stop"
+      }
+    },
+    {
+      "id": 7,
+      "name": "Record Dedupe Key",
+      "type": "data_store_add",
+      "description": "Record this outbound message in the dedupe store with a 5-minute TTL",
+      "config": {
+        "data_store": "{{DS_OUTBOUND_DEDUPE}}",
+        "record": {
+          "dedupe_key": "{{resolved_recipient.phone + '_' + outbound_request.work_item_id + '_' + outbound_request.notification_type}}",
+          "sent_at": "{{now}}",
+          "recipient": "{{resolved_recipient.phone}}"
+        },
+        "ttl_minutes": 5
+      }
+    },
+    {
+      "id": 8,
+      "name": "Message Type Router",
+      "type": "router",
+      "description": "Route to the appropriate 360dialog API call based on the message type: template (pre-approved HSM), free-text, or interactive (buttons/lists).",
+      "config": {
+        "routes": [
+          {
+            "id": "8a",
+            "name": "Template Message",
+            "condition": "{{outbound_request.message_type = 'template'}}",
+            "target_module": 9,
+            "description": "Pre-approved WhatsApp template (HSM). Required for messages sent outside the 24-hour conversation window."
+          },
+          {
+            "id": "8b",
+            "name": "Text Message",
+            "condition": "{{outbound_request.message_type = 'text'}}",
+            "target_module": 10,
+            "description": "Free-text message. Only valid within the 24-hour conversation window."
+          },
+          {
+            "id": "8c",
+            "name": "Interactive Message",
+            "condition": "{{outbound_request.message_type = 'interactive'}}",
+            "target_module": 11,
+            "description": "Interactive message with buttons or list selections. Only valid within the 24-hour conversation window."
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "name": "Send Template Message - 360dialog",
+      "type": "http_request",
+      "description": "Send a pre-approved WhatsApp template message via the 360dialog Cloud API. Templates are used for proactive notifications outside the 24-hour window.",
+      "config": {
+        "url": "https://waba.360dialog.io/v1/messages",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "D360-API-KEY": "{{360DIALOG_API_KEY}}"
+        },
+        "body": {
+          "messaging_product": "whatsapp",
+          "to": "{{resolved_recipient.phone}}",
+          "type": "template",
+          "template": {
+            "name": "{{outbound_request.template.name}}",
+            "language": {
+              "code": "{{ifempty(outbound_request.template.language, resolved_recipient.language)}}"
+            },
+            "components": "{{outbound_request.template.components}}"
+          }
+        },
+        "timeout_ms": 15000,
+        "retry": {
+          "attempts": 3,
+          "delay_ms": 2000,
+          "backoff_multiplier": 2,
+          "on_status_codes": [429, 500, 502, 503]
+        }
+      },
+      "output": "send_result",
+      "error_handler": {
+        "type": "route",
+        "target_module": 13
+      }
+    },
+    {
+      "id": 10,
+      "name": "Send Text Message - 360dialog",
+      "type": "http_request",
+      "description": "Send a free-text WhatsApp message via the 360dialog Cloud API. Only valid within the 24-hour conversation window after the recipient's last inbound message.",
+      "config": {
+        "url": "https://waba.360dialog.io/v1/messages",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "D360-API-KEY": "{{360DIALOG_API_KEY}}"
+        },
+        "body": {
+          "messaging_product": "whatsapp",
+          "to": "{{resolved_recipient.phone}}",
+          "type": "text",
+          "text": {
+            "body": "{{outbound_request.message.text}}",
+            "preview_url": false
+          }
+        },
+        "timeout_ms": 15000,
+        "retry": {
+          "attempts": 3,
+          "delay_ms": 2000,
+          "backoff_multiplier": 2,
+          "on_status_codes": [429, 500, 502, 503]
+        }
+      },
+      "output": "send_result",
+      "error_handler": {
+        "type": "route",
+        "target_module": 13
+      }
+    },
+    {
+      "id": 11,
+      "name": "Send Interactive Message - 360dialog",
+      "type": "http_request",
+      "description": "Send an interactive WhatsApp message (buttons or list) via the 360dialog Cloud API. Used for accept/reject, verify/reopen, and other action prompts.",
+      "config": {
+        "url": "https://waba.360dialog.io/v1/messages",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "D360-API-KEY": "{{360DIALOG_API_KEY}}"
+        },
+        "body": {
+          "messaging_product": "whatsapp",
+          "to": "{{resolved_recipient.phone}}",
+          "type": "interactive",
+          "interactive": "{{outbound_request.interactive}}"
+        },
+        "timeout_ms": 15000,
+        "retry": {
+          "attempts": 3,
+          "delay_ms": 2000,
+          "backoff_multiplier": 2,
+          "on_status_codes": [429, 500, 502, 503]
+        }
+      },
+      "output": "send_result",
+      "error_handler": {
+        "type": "route",
+        "target_module": 13
+      }
+    },
+    {
+      "id": 12,
+      "name": "Create Interaction Log",
+      "type": "airtable_create",
+      "description": "Log every outbound message to the Interaction_Logs table for audit trail and reporting purposes.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Interaction_Logs",
+        "fields": {
+          "work_item_id": "{{ifempty(outbound_request.work_item_id, '')}}",
+          "person_id": [
+            "{{resolved_recipient.person_id}}"
+          ],
+          "direction": "OUTBOUND",
+          "channel": "WHATSAPP",
+          "message_type": "{{upper(outbound_request.message_type)}}",
+          "message_content": "{{if(outbound_request.message_type = 'text', outbound_request.message.text, if(outbound_request.message_type = 'template', 'Template: ' + outbound_request.template.name, if(outbound_request.message_type = 'interactive', outbound_request.interactive.body.text, '')))}}",
+          "whatsapp_message_id": "{{ifempty(send_result.messages[0].id, '')}}",
+          "media_url": "",
+          "llm_processed": false,
+          "delivery_status": "{{if(send_result.messages[0].id, 'SENT', 'FAILED')}}",
+          "created_at": "{{now}}",
+          "scenario_execution_id": "{{executionId}}",
+          "notification_type": "{{outbound_request.notification_type}}"
+        }
+      },
+      "output": "interaction_log",
+      "error_handler": {
+        "type": "ignore",
+        "note": "Logging failure should not block outbound messaging. The message has already been sent."
+      }
+    },
+    {
+      "id": 13,
+      "name": "Error Handler - Send Failure",
+      "type": "error_handler",
+      "description": "Handle 360dialog API send failures. Classify the error, determine if retry is appropriate, and route to Scenario E (DLQ) with full context.",
+      "config": {
+        "actions": [
+          {
+            "type": "transformer",
+            "mappings": {
+              "is_rate_limited": "{{if(error.status_code = 429, true, false)}}",
+              "is_template_error": "{{if(error.status_code = 404 OR test(error.message, '(?i)template'), true, false)}}",
+              "is_window_expired": "{{if(test(error.message, '(?i)(session|window|24.?hour)'), true, false)}}",
+              "severity": "{{if(error.status_code = 429, 'LOW', if(error.status_code >= 500, 'HIGH', 'MEDIUM'))}}",
+              "retry_eligible": "{{if(error.status_code = 429 OR error.status_code >= 500, true, false)}}",
+              "retry_delay_seconds": "{{if(error.status_code = 429, 60, if(error.status_code >= 500, 30, 0))}}",
+              "fallback_action": "{{if(test(error.message, '(?i)(session|window|24.?hour)'), 'USE_TEMPLATE', '')}}"
+            }
+          },
+          {
+            "type": "webhook_call",
+            "url": "{{MAKE_WEBHOOK_URL_SCENARIO_E}}",
+            "method": "POST",
+            "body": {
+              "scenario": "SCENARIO_C_OUTBOUND",
+              "error_type": "{{error.type}}",
+              "error_message": "{{error.message}}",
+              "error_status_code": "{{error.status_code}}",
+              "module_id": "{{error.module_id}}",
+              "module_name": "{{error.module_name}}",
+              "severity": "{{if(error.status_code = 429, 'LOW', if(error.status_code >= 500, 'HIGH', 'MEDIUM'))}}",
+              "payload": "{{toString(outbound_request)}}",
+              "recipient_phone": "{{resolved_recipient.phone}}",
+              "notification_type": "{{outbound_request.notification_type}}",
+              "execution_id": "{{executionId}}",
+              "timestamp": "{{now}}",
+              "retry_eligible": "{{if(error.status_code = 429 OR error.status_code >= 500, true, false)}}",
+              "retry_delay_seconds": "{{if(error.status_code = 429, 60, if(error.status_code >= 500, 30, 0))}}"
+            }
+          },
+          {
+            "type": "airtable_create",
+            "description": "Log the failed send attempt",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "Interaction_Logs",
+            "fields": {
+              "work_item_id": "{{ifempty(outbound_request.work_item_id, '')}}",
+              "person_id": [
+                "{{resolved_recipient.person_id}}"
+              ],
+              "direction": "OUTBOUND",
+              "channel": "WHATSAPP",
+              "message_type": "{{upper(outbound_request.message_type)}}",
+              "message_content": "{{if(outbound_request.message_type = 'text', outbound_request.message.text, if(outbound_request.message_type = 'template', 'Template: ' + outbound_request.template.name, ''))}}",
+              "delivery_status": "FAILED",
+              "created_at": "{{now}}",
+              "scenario_execution_id": "{{executionId}}",
+              "notification_type": "{{outbound_request.notification_type}}"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": 14,
+      "name": "Process Additional Recipients",
+      "type": "iterator",
+      "description": "If the request includes additional_recipients (e.g., property manager, contractor), iterate through each and send the same message. Empty strings and duplicates are filtered out.",
+      "config": {
+        "condition": "{{if(length(ifempty(outbound_request.additional_recipients, parseJSON('[]'))) > 0, true, false)}}",
+        "array": "{{filter(ifempty(outbound_request.additional_recipients, parseJSON('[]')), '{{item != \"\" AND item != resolved_recipient.person_id}}')}}"
+      },
+      "output": "additional_recipient_id",
+      "post_actions": [
+        {
+          "type": "webhook_call",
+          "description": "Re-invoke this scenario for each additional recipient",
+          "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "X-Source-Scenario": "scenario-c-outbound",
+            "X-Execution-Id": "{{executionId}}"
+          },
+          "body": {
+            "recipient": {
+              "person_id": "{{additional_recipient_id}}",
+              "phone": "",
+              "name": ""
+            },
+            "message_type": "{{outbound_request.message_type}}",
+            "template": "{{outbound_request.template}}",
+            "message": "{{outbound_request.message}}",
+            "interactive": "{{outbound_request.interactive}}",
+            "work_item_id": "{{outbound_request.work_item_id}}",
+            "notification_type": "{{outbound_request.notification_type}}",
+            "source": "{{outbound_request.source}}"
+          }
+        }
+      ]
+    },
+    {
+      "id": 99,
+      "name": "Global Error Handler",
+      "type": "error_handler",
+      "description": "Catch any unhandled errors and route to Scenario E (DLQ) for investigation.",
+      "config": {
+        "actions": [
+          {
+            "type": "webhook_call",
+            "url": "{{MAKE_WEBHOOK_URL_SCENARIO_E}}",
+            "method": "POST",
+            "body": {
+              "scenario": "SCENARIO_C_OUTBOUND",
+              "error_type": "{{error.type}}",
+              "error_message": "{{error.message}}",
+              "module_id": "{{error.module_id}}",
+              "module_name": "{{error.module_name}}",
+              "severity": "{{if(error.type = 'RuntimeError', 'CRITICAL', if(error.type = 'ConnectionError', 'HIGH', 'MEDIUM'))}}",
+              "payload": "{{toString(outbound_request)}}",
+              "execution_id": "{{executionId}}",
+              "timestamp": "{{now}}",
+              "retry_eligible": true
+            }
+          },
+          {
+            "type": "webhook_response",
+            "status_code": 200,
+            "body": {
+              "status": "error_logged",
+              "retry_eligible": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "connections": [
+    { "from": 1, "to": 2 },
+    { "from": 2, "to": 3 },
+    { "from": 3, "to": 4 },
+    { "from": 4, "to": 5 },
+    { "from": 5, "to": 6 },
+    { "from": 6, "to": 7 },
+    { "from": 7, "to": 8 },
+    { "from": 8, "to": [9, 10, 11] },
+    { "from": [9, 10, 11], "to": 12 },
+    { "from": 12, "to": 14 }
+  ],
+  "env_vars": [
+    "MAKE_WEBHOOK_URL_SCENARIO_C",
+    "MAKE_WEBHOOK_URL_SCENARIO_E",
+    "360DIALOG_API_KEY",
+    "AIRTABLE_BASE_ID",
+    "AIRTABLE_API_KEY",
+    "DS_OUTBOUND_DEDUPE"
+  ],
+  "operations_estimate": {
+    "per_message": 6,
+    "daily_average": 300,
+    "monthly_estimate": 9000,
+    "notes": "Each notification from Scenario B or D triggers one execution. Additional recipients cause self-referencing webhook calls, adding 6 operations per extra recipient."
+  }
+}

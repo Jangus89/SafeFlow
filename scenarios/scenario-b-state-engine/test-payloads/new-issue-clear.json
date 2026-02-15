@@ -1,0 +1,48 @@
+{
+  "description": "Enriched payload from Scenario A containing a clear maintenance request with sufficient detail for direct triage to ASSESSMENT. Tenant reports a broken tap at Meridian House with specific location.",
+  "payload": {
+    "message": {
+      "id": "wamid.HBgLNDQ3NzAwOTAwMTIzFQIAERgSMkYxRjA2QTUyODdGNkI0MkEB",
+      "text": "Hi, the cold water tap in the ground floor kitchen at Meridian House has snapped off and water is spraying everywhere. I've turned the stopcock off under the sink but it's still dripping. Please send a plumber urgently.",
+      "type": "text",
+      "media_id": "",
+      "timestamp": "1739523600"
+    },
+    "person": {
+      "id": "recABC123DEF456",
+      "phone": "447700900123",
+      "name": "Sarah Mitchell",
+      "role": "TENANT",
+      "site_id": "recSITE001"
+    },
+    "command": {
+      "is_command": false,
+      "command": "",
+      "job_id": ""
+    },
+    "work_item": {
+      "exists": false,
+      "id": "",
+      "current_state": ""
+    },
+    "interaction_log_id": "recLOG001ABC",
+    "source_execution_id": "exec_a_20260215_001"
+  },
+  "expected_behaviour": {
+    "intent_route": "4b - New Issue (no existing work item)",
+    "should_call_llm": true,
+    "llm_expected_result": {
+      "intent": "NEW_ISSUE",
+      "has_sufficient_detail": true,
+      "urgency": "URGENT",
+      "discipline": "PLUMBING",
+      "title": "Broken cold water tap - ground floor kitchen, Meridian House",
+      "recommended_state": "ASSESSMENT"
+    },
+    "should_create_work_item": true,
+    "expected_state": "ASSESSMENT",
+    "should_notify_tenant": true,
+    "notification_template": "job_created_confirmation",
+    "should_handoff_to_scenario_c": true
+  }
+}

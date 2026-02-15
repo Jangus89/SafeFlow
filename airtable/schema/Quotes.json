@@ -1,0 +1,247 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblQuotes",
+  "name": "Quotes",
+  "description": "RFQ responses from contractors with cost breakdowns and lead times. Each record represents a single quote submitted by a contractor against a work item, enabling like-for-like comparison and approval workflows.",
+  "record_count_estimate": "Medium volume - multiple quotes per work item routed to external contractors",
+  "primary_field": "quote_id",
+  "fields": [
+    {
+      "field_id": "fldQuoteId",
+      "name": "quote_id",
+      "type": "autonumber",
+      "description": "Auto-incrementing quote identifier"
+    },
+    {
+      "field_id": "fldQuoteWorkItem",
+      "name": "work_item_id",
+      "type": "multipleRecordLinks",
+      "description": "Linked work item this quote is submitted against",
+      "options": {
+        "linkedTableId": "tblWorkItems",
+        "prefersSingleRecordLink": true,
+        "inverseLinkFieldId": "fldWorkItemQuotes"
+      }
+    },
+    {
+      "field_id": "fldQuoteContractor",
+      "name": "contractor_id",
+      "type": "multipleRecordLinks",
+      "description": "Contractor submitting this quote",
+      "options": {
+        "linkedTableId": "tblContractors",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldQuoteStatus",
+      "name": "status",
+      "type": "singleSelect",
+      "description": "Quote lifecycle status tracking progression from request through to acceptance or rejection",
+      "options": {
+        "choices": [
+          { "name": "REQUESTED", "color": "blueLight2" },
+          { "name": "SUBMITTED", "color": "cyanLight2" },
+          { "name": "ACCEPTED", "color": "greenBright" },
+          { "name": "REJECTED", "color": "redBright" },
+          { "name": "EXPIRED", "color": "grayLight2" },
+          { "name": "WITHDRAWN", "color": "orangeLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldQuoteLabour",
+      "name": "labour_cost",
+      "type": "currency",
+      "description": "Labour cost excluding VAT",
+      "options": {
+        "symbol": "\u00a3",
+        "precision": 2
+      }
+    },
+    {
+      "field_id": "fldQuoteMaterials",
+      "name": "materials_cost",
+      "type": "currency",
+      "description": "Materials cost excluding VAT",
+      "options": {
+        "symbol": "\u00a3",
+        "precision": 2
+      }
+    },
+    {
+      "field_id": "fldQuoteTotal",
+      "name": "total_cost",
+      "type": "formula",
+      "description": "Total cost excluding VAT (labour + materials)",
+      "options": {
+        "formula": "{labour_cost} + {materials_cost}",
+        "resultType": "currency",
+        "resultFormat": {
+          "symbol": "\u00a3",
+          "precision": 2
+        }
+      }
+    },
+    {
+      "field_id": "fldQuoteVat",
+      "name": "vat_amount",
+      "type": "formula",
+      "description": "VAT at 20% of total cost",
+      "options": {
+        "formula": "{total_cost} * 0.20",
+        "resultType": "currency",
+        "resultFormat": {
+          "symbol": "\u00a3",
+          "precision": 2
+        }
+      }
+    },
+    {
+      "field_id": "fldQuoteTotalIncVat",
+      "name": "total_inc_vat",
+      "type": "formula",
+      "description": "Total cost including VAT at 20%",
+      "options": {
+        "formula": "{total_cost} * 1.20",
+        "resultType": "currency",
+        "resultFormat": {
+          "symbol": "\u00a3",
+          "precision": 2
+        }
+      }
+    },
+    {
+      "field_id": "fldQuoteLeadTime",
+      "name": "lead_time_days",
+      "type": "number",
+      "description": "Estimated number of working days to complete the work from acceptance",
+      "options": {
+        "precision": 0
+      }
+    },
+    {
+      "field_id": "fldQuoteValidUntil",
+      "name": "valid_until",
+      "type": "date",
+      "description": "Date until which the quote remains valid",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" }
+      }
+    },
+    {
+      "field_id": "fldQuoteScope",
+      "name": "scope_of_work",
+      "type": "multilineText",
+      "description": "Detailed scope of work describing what is included in the quote"
+    },
+    {
+      "field_id": "fldQuoteExclusions",
+      "name": "exclusions",
+      "type": "multilineText",
+      "description": "Items explicitly excluded from the quote (e.g. making good, scaffolding, permits)"
+    },
+    {
+      "field_id": "fldQuoteSubmittedAt",
+      "name": "submitted_at",
+      "type": "dateTime",
+      "description": "Timestamp when the contractor submitted the quote",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldQuoteRespondedAt",
+      "name": "responded_at",
+      "type": "dateTime",
+      "description": "Timestamp when the quote was accepted or rejected by the property manager",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldQuoteCreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "Timestamp when the quote record was first created (RFQ sent)",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldQuoteNotes",
+      "name": "notes",
+      "type": "multilineText",
+      "description": "Additional notes, conditions, or assumptions accompanying the quote"
+    }
+  ],
+  "views": [
+    {
+      "name": "All Quotes",
+      "type": "grid",
+      "description": "Complete list of all quotes across all statuses",
+      "fields": "all",
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Pending Review",
+      "type": "grid",
+      "description": "Submitted quotes awaiting acceptance or rejection, ordered by submission date",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "status", "operator": "isEqual", "value": "SUBMITTED" }
+        ]
+      },
+      "sort": [
+        { "field": "submitted_at", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "By Work Item",
+      "type": "grid",
+      "description": "All quotes grouped by their associated work item for side-by-side comparison",
+      "group": [
+        { "field": "work_item_id", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "total_cost", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Comparison View",
+      "type": "grid",
+      "description": "Submitted and accepted quotes grouped by work item to compare pricing",
+      "filter": {
+        "conjunction": "or",
+        "conditions": [
+          { "field": "status", "operator": "isEqual", "value": "SUBMITTED" },
+          { "field": "status", "operator": "isEqual", "value": "ACCEPTED" }
+        ]
+      },
+      "group": [
+        { "field": "work_item_id", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "total_cost", "direction": "asc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": ["Work_Items", "Contractors"],
+    "has_many": ["Payments"]
+  },
+  "field_count": 17,
+  "formula_count": 3,
+  "link_count": 2
+}

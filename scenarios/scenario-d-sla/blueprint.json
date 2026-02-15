@@ -1,0 +1,918 @@
+{
+  "name": "Scenario D - SLA Monitor",
+  "version": "1.0.0",
+  "description": "Scheduled SLA monitoring and escalation engine. Runs every 15 minutes to identify overdue work items, apply state-specific nudge logic, escalate breached SLAs, auto-reassign where appropriate, and notify stakeholders via Scenario C.",
+  "scheduling": {
+    "type": "scheduled",
+    "interval_minutes": 15,
+    "timezone": "Europe/London"
+  },
+  "sla_definitions": {
+    "EMERGENCY": {
+      "response_minutes": 15,
+      "resolution_minutes": 240,
+      "escalation_intervals_minutes": [15, 30, 60],
+      "description": "Life safety, flooding, gas leak, fire, security breach"
+    },
+    "URGENT": {
+      "response_minutes": 60,
+      "resolution_minutes": 1440,
+      "escalation_intervals_minutes": [60, 120, 240],
+      "description": "No heating, no hot water, lift failure, major leak"
+    },
+    "STANDARD": {
+      "response_minutes": 240,
+      "resolution_minutes": 4320,
+      "escalation_intervals_minutes": [240, 480, 1440],
+      "description": "General repairs, minor plumbing, electrical faults"
+    },
+    "SCHEDULED": {
+      "response_minutes": 1440,
+      "resolution_minutes": 20160,
+      "escalation_intervals_minutes": [1440, 2880, 4320],
+      "description": "Planned maintenance, inspections, cosmetic repairs"
+    }
+  },
+  "modules": [
+    {
+      "id": 1,
+      "name": "Schedule Trigger",
+      "type": "schedule",
+      "description": "Fires every 15 minutes to poll for overdue or at-risk work items",
+      "config": {
+        "interval": 15,
+        "unit": "minutes",
+        "timezone": "Europe/London",
+        "start_time": "00:00",
+        "note": "Runs 96 times per day. Each run scans for items approaching or past SLA deadlines."
+      },
+      "output": "trigger_timestamp"
+    },
+    {
+      "id": 2,
+      "name": "Search Overdue Work Items",
+      "type": "airtable_search",
+      "description": "Find all active work items where SLA is breached or approaching breach within the next escalation window",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Work_Items",
+        "filter_formula": "AND(OR({is_overdue} = TRUE(), DATETIME_DIFF({sla_due_at}, NOW(), 'minutes') <= IF({urgency} = 'EMERGENCY', 15, IF({urgency} = 'URGENT', 60, IF({urgency} = 'STANDARD', 240, 1440)))), {current_state} != 'CLOSED', {current_state} != 'CANCELLED', {sla_due_at} != BLANK(), {state_locked} != TRUE())",
+        "sort": [
+          {
+            "field": "priority_score",
+            "direction": "desc"
+          },
+          {
+            "field": "sla_due_at",
+            "direction": "asc"
+          }
+        ],
+        "max_records": 100,
+        "fields": [
+          "work_item_id",
+          "title",
+          "current_state",
+          "urgency",
+          "sla_due_at",
+          "escalation_level",
+          "assigned_engineer_id",
+          "contractor_id",
+          "reported_by",
+          "site_id",
+          "discipline_required",
+          "state_started_at",
+          "time_in_current_state",
+          "is_overdue",
+          "created_at",
+          "updated_at",
+          "state_history",
+          "blocked_reason",
+          "priority_score"
+        ]
+      },
+      "output": "overdue_items",
+      "error_handler": {
+        "type": "route",
+        "target_module": 99,
+        "note": "Route Airtable errors to global error handler"
+      }
+    },
+    {
+      "id": 3,
+      "name": "Filter - Has Results",
+      "type": "filter",
+      "description": "Only proceed if there are overdue or at-risk items to process",
+      "config": {
+        "condition": "{{length(overdue_items) > 0}}",
+        "fallback": "stop",
+        "note": "If no items require attention, scenario completes silently"
+      }
+    },
+    {
+      "id": 4,
+      "name": "Iterator - Process Each Item",
+      "type": "iterator",
+      "description": "Iterate through each overdue work item for individual processing",
+      "config": {
+        "array": "{{overdue_items}}"
+      },
+      "output": "current_item"
+    },
+    {
+      "id": 5,
+      "name": "Calculate Overdue Metrics",
+      "type": "transformer",
+      "description": "Calculate minutes overdue, determine which escalation level is required based on urgency tier and elapsed time past SLA",
+      "config": {
+        "mappings": {
+          "work_item_id": "{{current_item.fields.work_item_id}}",
+          "title": "{{current_item.fields.title}}",
+          "current_state": "{{current_item.fields.current_state}}",
+          "urgency": "{{current_item.fields.urgency}}",
+          "sla_due_at": "{{current_item.fields.sla_due_at}}",
+          "current_escalation_level": "{{ifempty(current_item.fields.escalation_level, 0)}}",
+          "minutes_overdue": "{{max(0, dateDifference(now, current_item.fields.sla_due_at, 'minutes'))}}",
+          "minutes_in_state": "{{dateDifference(now, current_item.fields.state_started_at, 'minutes')}}",
+          "assigned_engineer_id": "{{ifempty(current_item.fields.assigned_engineer_id, '')}}",
+          "contractor_id": "{{ifempty(current_item.fields.contractor_id, '')}}",
+          "reported_by": "{{current_item.fields.reported_by}}",
+          "site_id": "{{current_item.fields.site_id}}",
+          "discipline_required": "{{current_item.fields.discipline_required}}",
+          "record_id": "{{current_item.id}}",
+          "is_overdue": "{{current_item.fields.is_overdue}}",
+          "escalation_thresholds": "{{if(current_item.fields.urgency = 'EMERGENCY', parseJSON('[15, 30, 60]'), if(current_item.fields.urgency = 'URGENT', parseJSON('[60, 120, 240]'), if(current_item.fields.urgency = 'STANDARD', parseJSON('[240, 480, 1440]'), parseJSON('[1440, 2880, 4320]'))))}}",
+          "required_escalation_level": "{{if(max(0, dateDifference(now, current_item.fields.sla_due_at, 'minutes')) >= if(current_item.fields.urgency = 'EMERGENCY', 60, if(current_item.fields.urgency = 'URGENT', 240, if(current_item.fields.urgency = 'STANDARD', 1440, 4320))), 3, if(max(0, dateDifference(now, current_item.fields.sla_due_at, 'minutes')) >= if(current_item.fields.urgency = 'EMERGENCY', 30, if(current_item.fields.urgency = 'URGENT', 120, if(current_item.fields.urgency = 'STANDARD', 480, 2880))), 2, if(max(0, dateDifference(now, current_item.fields.sla_due_at, 'minutes')) >= if(current_item.fields.urgency = 'EMERGENCY', 15, if(current_item.fields.urgency = 'URGENT', 60, if(current_item.fields.urgency = 'STANDARD', 240, 1440))), 1, 0)))}}",
+          "needs_escalation_increment": "{{if(if(max(0, dateDifference(now, current_item.fields.sla_due_at, 'minutes')) >= if(current_item.fields.urgency = 'EMERGENCY', 60, if(current_item.fields.urgency = 'URGENT', 240, if(current_item.fields.urgency = 'STANDARD', 1440, 4320))), 3, if(max(0, dateDifference(now, current_item.fields.sla_due_at, 'minutes')) >= if(current_item.fields.urgency = 'EMERGENCY', 30, if(current_item.fields.urgency = 'URGENT', 120, if(current_item.fields.urgency = 'STANDARD', 480, 2880))), 2, if(max(0, dateDifference(now, current_item.fields.sla_due_at, 'minutes')) >= if(current_item.fields.urgency = 'EMERGENCY', 15, if(current_item.fields.urgency = 'URGENT', 60, if(current_item.fields.urgency = 'STANDARD', 240, 1440))), 1, 0))) > ifempty(current_item.fields.escalation_level, 0), true, false)}}"
+        }
+      },
+      "output": "overdue_metrics"
+    },
+    {
+      "id": 6,
+      "name": "Filter - Needs Action",
+      "type": "filter",
+      "description": "Only process items that need a new escalation action (avoid re-sending notifications for same level)",
+      "config": {
+        "condition": "{{overdue_metrics.needs_escalation_increment = true}}",
+        "fallback": "continue",
+        "note": "Skip items already processed at their current escalation level"
+      }
+    },
+    {
+      "id": 7,
+      "name": "Router - State-Specific Nudge Logic",
+      "type": "router",
+      "description": "Route to different handling logic based on the current state of the overdue work item. Each state has specific nudge behaviour and auto-actions.",
+      "config": {
+        "routes": [
+          {
+            "id": "7a",
+            "name": "CLARIFICATION Overdue",
+            "condition": "{{overdue_metrics.current_state = 'CLARIFICATION'}}",
+            "target_module": 8,
+            "description": "Reminder to reporter; auto-cancel after 48h with no response"
+          },
+          {
+            "id": "7b",
+            "name": "ASSESSMENT Overdue",
+            "condition": "{{overdue_metrics.current_state = 'ASSESSMENT'}}",
+            "target_module": 9,
+            "description": "Alert supervisor for manual triage"
+          },
+          {
+            "id": "7c",
+            "name": "ASSIGNED Overdue",
+            "condition": "{{overdue_metrics.current_state = 'ASSIGNED'}}",
+            "target_module": 10,
+            "description": "Nudge engineer/contractor; reassign at 2x SLA"
+          },
+          {
+            "id": "7d",
+            "name": "IN_PROGRESS Overdue",
+            "condition": "{{overdue_metrics.current_state = 'IN_PROGRESS'}}",
+            "target_module": 11,
+            "description": "Check in with assignee; notify property manager"
+          },
+          {
+            "id": "7e",
+            "name": "VERIFICATION Overdue",
+            "condition": "{{overdue_metrics.current_state = 'VERIFICATION'}}",
+            "target_module": 12,
+            "description": "Remind verifier; auto-close after 72h"
+          },
+          {
+            "id": "7f",
+            "name": "PAYMENT_PENDING Overdue",
+            "condition": "{{overdue_metrics.current_state = 'PAYMENT_PENDING'}}",
+            "target_module": 13,
+            "description": "Flag to finance team"
+          },
+          {
+            "id": "7g",
+            "name": "ESCALATED State",
+            "condition": "{{overdue_metrics.current_state = 'ESCALATED'}}",
+            "target_module": 14,
+            "description": "Already escalated - apply further escalation levels"
+          },
+          {
+            "id": "7h",
+            "name": "Other States",
+            "condition": "{{overdue_metrics.current_state != 'CLARIFICATION' AND overdue_metrics.current_state != 'ASSESSMENT' AND overdue_metrics.current_state != 'ASSIGNED' AND overdue_metrics.current_state != 'IN_PROGRESS' AND overdue_metrics.current_state != 'VERIFICATION' AND overdue_metrics.current_state != 'PAYMENT_PENDING' AND overdue_metrics.current_state != 'ESCALATED'}}",
+            "target_module": 15,
+            "description": "Fallback for INTAKE, ON_HOLD, REOPENED states"
+          }
+        ]
+      }
+    },
+    {
+      "id": 8,
+      "name": "CLARIFICATION - Nudge Reporter",
+      "type": "transformer",
+      "description": "Handle overdue CLARIFICATION state items. Send reminder to the reporter. If no response for 48+ hours, prepare auto-cancel transition.",
+      "config": {
+        "mappings": {
+          "action": "{{if(overdue_metrics.minutes_in_state >= 2880, 'AUTO_CANCEL', 'NUDGE_REPORTER')}}",
+          "notification_type": "{{if(overdue_metrics.minutes_in_state >= 2880, 'AUTO_CANCEL_NOTICE', 'CLARIFICATION_REMINDER')}}",
+          "notification_recipients": ["{{overdue_metrics.reported_by}}"],
+          "message_template": "{{if(overdue_metrics.minutes_in_state >= 2880, 'clarification_auto_cancel', 'clarification_reminder')}}",
+          "message_context": {
+            "work_item_id": "{{overdue_metrics.work_item_id}}",
+            "title": "{{overdue_metrics.title}}",
+            "hours_waiting": "{{floor(overdue_metrics.minutes_in_state / 60)}}",
+            "will_auto_cancel": "{{if(overdue_metrics.minutes_in_state >= 2880, true, false)}}"
+          },
+          "state_transition": "{{if(overdue_metrics.minutes_in_state >= 2880, 'CANCELLED', '')}}",
+          "transition_reason": "{{if(overdue_metrics.minutes_in_state >= 2880, 'Auto-cancelled: no response to clarification request for 48+ hours', '')}}"
+        }
+      },
+      "output": "clarification_action"
+    },
+    {
+      "id": 9,
+      "name": "ASSESSMENT - Alert Supervisor",
+      "type": "transformer",
+      "description": "Handle overdue ASSESSMENT state items. Alert the site supervisor or property manager for manual triage.",
+      "config": {
+        "mappings": {
+          "action": "ALERT_SUPERVISOR",
+          "notification_type": "ASSESSMENT_OVERDUE",
+          "notification_recipients": "{{lookup_supervisors}}",
+          "message_template": "assessment_overdue_alert",
+          "message_context": {
+            "work_item_id": "{{overdue_metrics.work_item_id}}",
+            "title": "{{overdue_metrics.title}}",
+            "urgency": "{{overdue_metrics.urgency}}",
+            "minutes_overdue": "{{overdue_metrics.minutes_overdue}}",
+            "site_id": "{{overdue_metrics.site_id}}",
+            "discipline_required": "{{overdue_metrics.discipline_required}}"
+          },
+          "state_transition": "",
+          "transition_reason": ""
+        }
+      },
+      "output": "assessment_action"
+    },
+    {
+      "id": 10,
+      "name": "ASSIGNED - Nudge or Reassign",
+      "type": "transformer",
+      "description": "Handle overdue ASSIGNED state items. Nudge the assigned engineer or contractor. If overdue by 2x the SLA resolution time, trigger auto-reassignment.",
+      "config": {
+        "mappings": {
+          "sla_resolution_minutes": "{{if(overdue_metrics.urgency = 'EMERGENCY', 240, if(overdue_metrics.urgency = 'URGENT', 1440, if(overdue_metrics.urgency = 'STANDARD', 4320, 20160)))}}",
+          "is_double_sla": "{{if(overdue_metrics.minutes_overdue >= if(overdue_metrics.urgency = 'EMERGENCY', 480, if(overdue_metrics.urgency = 'URGENT', 2880, if(overdue_metrics.urgency = 'STANDARD', 8640, 40320))), true, false)}}",
+          "action": "{{if(overdue_metrics.minutes_overdue >= if(overdue_metrics.urgency = 'EMERGENCY', 480, if(overdue_metrics.urgency = 'URGENT', 2880, if(overdue_metrics.urgency = 'STANDARD', 8640, 40320))), 'AUTO_REASSIGN', 'NUDGE_ASSIGNEE')}}",
+          "notification_type": "{{if(overdue_metrics.minutes_overdue >= if(overdue_metrics.urgency = 'EMERGENCY', 480, if(overdue_metrics.urgency = 'URGENT', 2880, if(overdue_metrics.urgency = 'STANDARD', 8640, 40320))), 'REASSIGNMENT_NOTICE', 'ASSIGNMENT_NUDGE')}}",
+          "notification_recipients": [
+            "{{overdue_metrics.assigned_engineer_id}}",
+            "{{overdue_metrics.contractor_id}}"
+          ],
+          "message_template": "{{if(overdue_metrics.minutes_overdue >= if(overdue_metrics.urgency = 'EMERGENCY', 480, if(overdue_metrics.urgency = 'URGENT', 2880, if(overdue_metrics.urgency = 'STANDARD', 8640, 40320))), 'assigned_auto_reassign', 'assigned_nudge')}}",
+          "message_context": {
+            "work_item_id": "{{overdue_metrics.work_item_id}}",
+            "title": "{{overdue_metrics.title}}",
+            "urgency": "{{overdue_metrics.urgency}}",
+            "minutes_overdue": "{{overdue_metrics.minutes_overdue}}",
+            "assigned_to": "{{ifempty(overdue_metrics.assigned_engineer_id, overdue_metrics.contractor_id)}}"
+          },
+          "needs_reassignment": "{{if(overdue_metrics.minutes_overdue >= if(overdue_metrics.urgency = 'EMERGENCY', 480, if(overdue_metrics.urgency = 'URGENT', 2880, if(overdue_metrics.urgency = 'STANDARD', 8640, 40320))), true, false)}}",
+          "state_transition": "",
+          "transition_reason": ""
+        }
+      },
+      "output": "assigned_action"
+    },
+    {
+      "id": 11,
+      "name": "IN_PROGRESS - Check In",
+      "type": "transformer",
+      "description": "Handle overdue IN_PROGRESS state items. Send check-in message to the assignee and notify the property manager.",
+      "config": {
+        "mappings": {
+          "action": "CHECK_IN_ASSIGNEE",
+          "notification_type": "IN_PROGRESS_OVERDUE",
+          "notification_recipients": [
+            "{{overdue_metrics.assigned_engineer_id}}",
+            "{{overdue_metrics.contractor_id}}"
+          ],
+          "additional_notify": "{{lookup_property_manager}}",
+          "message_template": "in_progress_check_in",
+          "message_context": {
+            "work_item_id": "{{overdue_metrics.work_item_id}}",
+            "title": "{{overdue_metrics.title}}",
+            "urgency": "{{overdue_metrics.urgency}}",
+            "minutes_overdue": "{{overdue_metrics.minutes_overdue}}",
+            "hours_in_progress": "{{floor(overdue_metrics.minutes_in_state / 60)}}"
+          },
+          "state_transition": "",
+          "transition_reason": ""
+        }
+      },
+      "output": "in_progress_action"
+    },
+    {
+      "id": 12,
+      "name": "VERIFICATION - Remind or Auto-Close",
+      "type": "transformer",
+      "description": "Handle overdue VERIFICATION state items. Send reminder to the verifier. If in verification for 72+ hours with no response, auto-close as accepted.",
+      "config": {
+        "mappings": {
+          "action": "{{if(overdue_metrics.minutes_in_state >= 4320, 'AUTO_CLOSE', 'REMIND_VERIFIER')}}",
+          "notification_type": "{{if(overdue_metrics.minutes_in_state >= 4320, 'AUTO_CLOSE_NOTICE', 'VERIFICATION_REMINDER')}}",
+          "notification_recipients": ["{{overdue_metrics.reported_by}}"],
+          "message_template": "{{if(overdue_metrics.minutes_in_state >= 4320, 'verification_auto_close', 'verification_reminder')}}",
+          "message_context": {
+            "work_item_id": "{{overdue_metrics.work_item_id}}",
+            "title": "{{overdue_metrics.title}}",
+            "hours_in_verification": "{{floor(overdue_metrics.minutes_in_state / 60)}}",
+            "will_auto_close": "{{if(overdue_metrics.minutes_in_state >= 4320, true, false)}}"
+          },
+          "state_transition": "{{if(overdue_metrics.minutes_in_state >= 4320, 'CLOSED', '')}}",
+          "transition_reason": "{{if(overdue_metrics.minutes_in_state >= 4320, 'Auto-closed: verification period expired after 72 hours with no response. Work deemed accepted.', '')}}"
+        }
+      },
+      "output": "verification_action"
+    },
+    {
+      "id": 13,
+      "name": "PAYMENT_PENDING - Flag Finance",
+      "type": "transformer",
+      "description": "Handle overdue PAYMENT_PENDING state items. Flag to the finance team for attention.",
+      "config": {
+        "mappings": {
+          "action": "FLAG_FINANCE",
+          "notification_type": "PAYMENT_OVERDUE",
+          "notification_recipients": "{{lookup_finance_team}}",
+          "message_template": "payment_pending_flag",
+          "message_context": {
+            "work_item_id": "{{overdue_metrics.work_item_id}}",
+            "title": "{{overdue_metrics.title}}",
+            "minutes_overdue": "{{overdue_metrics.minutes_overdue}}",
+            "contractor_id": "{{overdue_metrics.contractor_id}}",
+            "site_id": "{{overdue_metrics.site_id}}"
+          },
+          "state_transition": "",
+          "transition_reason": ""
+        }
+      },
+      "output": "payment_action"
+    },
+    {
+      "id": 14,
+      "name": "ESCALATED - Further Escalation",
+      "type": "transformer",
+      "description": "Handle items already in ESCALATED state. Apply further escalation levels, notifying increasingly senior stakeholders.",
+      "config": {
+        "mappings": {
+          "action": "FURTHER_ESCALATION",
+          "notification_type": "ESCALATION_CONTINUED",
+          "notification_recipients": "{{if(overdue_metrics.required_escalation_level >= 3, lookup_all_stakeholders, if(overdue_metrics.required_escalation_level >= 2, lookup_senior_management, lookup_supervisors))}}",
+          "message_template": "escalation_continued",
+          "message_context": {
+            "work_item_id": "{{overdue_metrics.work_item_id}}",
+            "title": "{{overdue_metrics.title}}",
+            "urgency": "{{overdue_metrics.urgency}}",
+            "escalation_level": "{{overdue_metrics.required_escalation_level}}",
+            "minutes_overdue": "{{overdue_metrics.minutes_overdue}}",
+            "total_hours_open": "{{floor(dateDifference(now, current_item.fields.created_at, 'minutes') / 60)}}"
+          },
+          "state_transition": "",
+          "transition_reason": ""
+        }
+      },
+      "output": "escalated_action"
+    },
+    {
+      "id": 15,
+      "name": "Other States - Default Handler",
+      "type": "transformer",
+      "description": "Fallback handler for INTAKE, ON_HOLD, REOPENED states. Log the overdue event and alert the supervisor.",
+      "config": {
+        "mappings": {
+          "action": "DEFAULT_ALERT",
+          "notification_type": "STATE_OVERDUE_DEFAULT",
+          "notification_recipients": "{{lookup_supervisors}}",
+          "message_template": "default_overdue_alert",
+          "message_context": {
+            "work_item_id": "{{overdue_metrics.work_item_id}}",
+            "title": "{{overdue_metrics.title}}",
+            "current_state": "{{overdue_metrics.current_state}}",
+            "urgency": "{{overdue_metrics.urgency}}",
+            "minutes_overdue": "{{overdue_metrics.minutes_overdue}}"
+          },
+          "state_transition": "",
+          "transition_reason": ""
+        }
+      },
+      "output": "default_action"
+    },
+    {
+      "id": 16,
+      "name": "Merge Action Outputs",
+      "type": "aggregator",
+      "description": "Merge the outputs from all state-specific handlers into a single action payload for downstream processing",
+      "config": {
+        "source_variables": [
+          "clarification_action",
+          "assessment_action",
+          "assigned_action",
+          "in_progress_action",
+          "verification_action",
+          "payment_action",
+          "escalated_action",
+          "default_action"
+        ],
+        "merge_strategy": "first_non_empty"
+      },
+      "output": "resolved_action"
+    },
+    {
+      "id": 17,
+      "name": "Escalation Level Router",
+      "type": "router",
+      "description": "Route based on the required escalation level to determine notification scope",
+      "config": {
+        "routes": [
+          {
+            "id": "17a",
+            "name": "Level 0 to 1 - Nudge Assignee",
+            "condition": "{{overdue_metrics.required_escalation_level = 1 AND overdue_metrics.current_escalation_level < 1}}",
+            "target_module": 18,
+            "description": "First escalation: nudge the assigned person"
+          },
+          {
+            "id": "17b",
+            "name": "Level 1 to 2 - Notify Supervisor + PM",
+            "condition": "{{overdue_metrics.required_escalation_level = 2 AND overdue_metrics.current_escalation_level < 2}}",
+            "target_module": 19,
+            "description": "Second escalation: loop in supervisor and property manager"
+          },
+          {
+            "id": "17c",
+            "name": "Level 2 to 3 - Senior Management + Auto-Reassign",
+            "condition": "{{overdue_metrics.required_escalation_level >= 3 AND overdue_metrics.current_escalation_level < 3}}",
+            "target_module": 20,
+            "description": "Third escalation: notify senior management, trigger auto-reassignment"
+          },
+          {
+            "id": "17d",
+            "name": "Level 3+ - Critical Alert",
+            "condition": "{{overdue_metrics.required_escalation_level >= 3 AND overdue_metrics.current_escalation_level >= 3}}",
+            "target_module": 21,
+            "description": "Beyond level 3: critical alert to all stakeholders"
+          }
+        ]
+      }
+    },
+    {
+      "id": 18,
+      "name": "Level 1 - Prepare Nudge",
+      "type": "transformer",
+      "description": "Prepare level 1 escalation: nudge message to the assignee",
+      "config": {
+        "mappings": {
+          "escalation_notification": {
+            "level": 1,
+            "recipients": [
+              "{{ifempty(overdue_metrics.assigned_engineer_id, overdue_metrics.contractor_id)}}"
+            ],
+            "template": "escalation_level_1_nudge",
+            "subject": "SLA Breach Alert - SF-{{overdue_metrics.work_item_id}}",
+            "context": {
+              "work_item_id": "{{overdue_metrics.work_item_id}}",
+              "title": "{{overdue_metrics.title}}",
+              "urgency": "{{overdue_metrics.urgency}}",
+              "minutes_overdue": "{{overdue_metrics.minutes_overdue}}"
+            }
+          }
+        }
+      },
+      "output": "level_1_notification"
+    },
+    {
+      "id": 19,
+      "name": "Level 2 - Notify Supervisor + PM",
+      "type": "transformer",
+      "description": "Prepare level 2 escalation: notify supervisor and property manager in addition to assignee",
+      "config": {
+        "mappings": {
+          "escalation_notification": {
+            "level": 2,
+            "recipients": [
+              "{{ifempty(overdue_metrics.assigned_engineer_id, overdue_metrics.contractor_id)}}",
+              "{{lookup_supervisor_for_site}}",
+              "{{lookup_property_manager_for_site}}"
+            ],
+            "template": "escalation_level_2_supervisor",
+            "subject": "SLA Breach Escalation Level 2 - SF-{{overdue_metrics.work_item_id}}",
+            "context": {
+              "work_item_id": "{{overdue_metrics.work_item_id}}",
+              "title": "{{overdue_metrics.title}}",
+              "urgency": "{{overdue_metrics.urgency}}",
+              "minutes_overdue": "{{overdue_metrics.minutes_overdue}}",
+              "current_assignee": "{{ifempty(overdue_metrics.assigned_engineer_id, overdue_metrics.contractor_id)}}"
+            }
+          }
+        }
+      },
+      "output": "level_2_notification"
+    },
+    {
+      "id": 20,
+      "name": "Level 3 - Senior Management + Auto-Reassign",
+      "type": "transformer",
+      "description": "Prepare level 3 escalation: notify senior management and trigger auto-reassignment to an available engineer",
+      "config": {
+        "mappings": {
+          "escalation_notification": {
+            "level": 3,
+            "recipients": [
+              "{{ifempty(overdue_metrics.assigned_engineer_id, overdue_metrics.contractor_id)}}",
+              "{{lookup_supervisor_for_site}}",
+              "{{lookup_property_manager_for_site}}",
+              "{{lookup_senior_management}}"
+            ],
+            "template": "escalation_level_3_critical",
+            "subject": "CRITICAL: SLA Breach Level 3 - SF-{{overdue_metrics.work_item_id}}",
+            "context": {
+              "work_item_id": "{{overdue_metrics.work_item_id}}",
+              "title": "{{overdue_metrics.title}}",
+              "urgency": "{{overdue_metrics.urgency}}",
+              "minutes_overdue": "{{overdue_metrics.minutes_overdue}}",
+              "current_assignee": "{{ifempty(overdue_metrics.assigned_engineer_id, overdue_metrics.contractor_id)}}"
+            }
+          },
+          "trigger_auto_reassign": true
+        }
+      },
+      "output": "level_3_notification"
+    },
+    {
+      "id": 21,
+      "name": "Level 3+ - Critical Alert All Stakeholders",
+      "type": "transformer",
+      "description": "Prepare critical alert when escalation is beyond level 3: notify all stakeholders including directors",
+      "config": {
+        "mappings": {
+          "escalation_notification": {
+            "level": "{{overdue_metrics.required_escalation_level}}",
+            "recipients": "{{lookup_all_stakeholders}}",
+            "template": "escalation_critical_all_stakeholders",
+            "subject": "CRITICAL UNRESOLVED: SLA Breach Level {{overdue_metrics.required_escalation_level}} - SF-{{overdue_metrics.work_item_id}}",
+            "context": {
+              "work_item_id": "{{overdue_metrics.work_item_id}}",
+              "title": "{{overdue_metrics.title}}",
+              "urgency": "{{overdue_metrics.urgency}}",
+              "minutes_overdue": "{{overdue_metrics.minutes_overdue}}",
+              "escalation_level": "{{overdue_metrics.required_escalation_level}}",
+              "total_hours_open": "{{floor(dateDifference(now, current_item.fields.created_at, 'minutes') / 60)}}"
+            }
+          }
+        }
+      },
+      "output": "critical_notification"
+    },
+    {
+      "id": 22,
+      "name": "Update Work Item - Escalation Fields",
+      "type": "airtable_update",
+      "description": "Update the work item record with the new escalation level and SLA tracking fields",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Work_Items",
+        "record_id": "{{overdue_metrics.record_id}}",
+        "fields": {
+          "escalation_level": "{{overdue_metrics.required_escalation_level}}",
+          "updated_at": "{{now}}"
+        }
+      },
+      "output": "updated_work_item",
+      "error_handler": {
+        "type": "route",
+        "target_module": 99,
+        "note": "Route Airtable update errors to global error handler"
+      }
+    },
+    {
+      "id": 23,
+      "name": "Router - State Transition Required",
+      "type": "router",
+      "description": "Check if a state transition is required (escalation to ESCALATED state, auto-cancel, or auto-close)",
+      "config": {
+        "routes": [
+          {
+            "id": "23a",
+            "name": "Transition to ESCALATED",
+            "condition": "{{overdue_metrics.required_escalation_level >= 2 AND overdue_metrics.current_state != 'ESCALATED' AND resolved_action.state_transition = ''}}",
+            "target_module": 24,
+            "description": "Escalation level 2+ triggers transition to ESCALATED state"
+          },
+          {
+            "id": "23b",
+            "name": "Auto-Cancel (Clarification Timeout)",
+            "condition": "{{resolved_action.state_transition = 'CANCELLED'}}",
+            "target_module": 25,
+            "description": "Auto-cancel work items stuck in CLARIFICATION for 48+ hours"
+          },
+          {
+            "id": "23c",
+            "name": "Auto-Close (Verification Timeout)",
+            "condition": "{{resolved_action.state_transition = 'CLOSED'}}",
+            "target_module": 26,
+            "description": "Auto-close work items stuck in VERIFICATION for 72+ hours"
+          },
+          {
+            "id": "23d",
+            "name": "No Transition Needed",
+            "condition": "{{resolved_action.state_transition = '' AND (overdue_metrics.required_escalation_level < 2 OR overdue_metrics.current_state = 'ESCALATED')}}",
+            "target_module": 28,
+            "description": "Skip state transition, proceed to notifications"
+          }
+        ]
+      }
+    },
+    {
+      "id": 24,
+      "name": "Transition to ESCALATED",
+      "type": "webhook_call",
+      "description": "Trigger state transition to ESCALATED via Scenario B (State Engine)",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_B}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-d-sla",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "command": {
+            "is_command": true,
+            "command": "ESCALATE"
+          },
+          "work_item": {
+            "exists": true,
+            "id": "{{overdue_metrics.record_id}}",
+            "current_state": "{{overdue_metrics.current_state}}"
+          },
+          "person": {
+            "id": "SYSTEM",
+            "role": "SYSTEM",
+            "name": "SLA Monitor"
+          },
+          "message": {
+            "text": "SLA breach - auto-escalated to level {{overdue_metrics.required_escalation_level}}. Item overdue by {{overdue_metrics.minutes_overdue}} minutes.",
+            "type": "system"
+          },
+          "source_execution_id": "{{executionId}}"
+        }
+      },
+      "output": "escalation_transition_result"
+    },
+    {
+      "id": 25,
+      "name": "Auto-Cancel via State Engine",
+      "type": "webhook_call",
+      "description": "Trigger auto-cancel transition via Scenario B for items stuck in CLARIFICATION 48+ hours",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_B}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-d-sla",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "command": {
+            "is_command": true,
+            "command": "CANCEL"
+          },
+          "work_item": {
+            "exists": true,
+            "id": "{{overdue_metrics.record_id}}",
+            "current_state": "CLARIFICATION"
+          },
+          "person": {
+            "id": "SYSTEM",
+            "role": "SYSTEM",
+            "name": "SLA Monitor"
+          },
+          "message": {
+            "text": "{{resolved_action.transition_reason}}",
+            "type": "system"
+          },
+          "source_execution_id": "{{executionId}}"
+        }
+      },
+      "output": "cancel_transition_result"
+    },
+    {
+      "id": 26,
+      "name": "Auto-Close via State Engine",
+      "type": "webhook_call",
+      "description": "Trigger auto-close transition via Scenario B for items stuck in VERIFICATION 72+ hours",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_B}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-d-sla",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "command": {
+            "is_command": true,
+            "command": "DONE"
+          },
+          "work_item": {
+            "exists": true,
+            "id": "{{overdue_metrics.record_id}}",
+            "current_state": "VERIFICATION"
+          },
+          "person": {
+            "id": "SYSTEM",
+            "role": "SYSTEM",
+            "name": "SLA Monitor"
+          },
+          "message": {
+            "text": "{{resolved_action.transition_reason}}",
+            "type": "system"
+          },
+          "source_execution_id": "{{executionId}}"
+        }
+      },
+      "output": "close_transition_result"
+    },
+    {
+      "id": 27,
+      "name": "Auto-Reassignment Search",
+      "type": "airtable_search",
+      "description": "Find an available engineer with matching discipline for auto-reassignment at Level 3 escalation",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "People",
+        "filter_formula": "AND({role} = 'ENGINEER', {is_active} = TRUE(), FIND('{{overdue_metrics.discipline_required}}', {disciplines}) > 0, {current_workload} < {max_workload})",
+        "sort": [
+          {
+            "field": "current_workload",
+            "direction": "asc"
+          }
+        ],
+        "max_records": 1,
+        "note": "Selects the engineer with the lightest workload who has the required discipline. Falls back to any available engineer if discipline match not found."
+      },
+      "output": "available_engineer",
+      "fallback": {
+        "description": "If no discipline-matched engineer found, search for any available engineer",
+        "filter_formula": "AND({role} = 'ENGINEER', {is_active} = TRUE(), {current_workload} < {max_workload})",
+        "sort": [
+          {
+            "field": "current_workload",
+            "direction": "asc"
+          }
+        ],
+        "max_records": 1
+      }
+    },
+    {
+      "id": 28,
+      "name": "Send Notifications via Scenario C",
+      "type": "webhook_call",
+      "description": "Dispatch all escalation notifications through the outbound messaging scenario (Scenario C)",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-d-sla",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "notification_type": "{{resolved_action.notification_type}}",
+          "template": "{{resolved_action.message_template}}",
+          "recipients": "{{resolved_action.notification_recipients}}",
+          "context": "{{resolved_action.message_context}}",
+          "work_item_id": "{{overdue_metrics.work_item_id}}",
+          "urgency": "{{overdue_metrics.urgency}}",
+          "escalation_level": "{{overdue_metrics.required_escalation_level}}",
+          "channel": "WHATSAPP",
+          "source": "SLA_MONITOR"
+        }
+      },
+      "output": "notification_result",
+      "error_handler": {
+        "type": "route",
+        "target_module": 99,
+        "note": "Non-critical: log notification failure but do not fail the run"
+      }
+    },
+    {
+      "id": 29,
+      "name": "Log Escalation in Interaction_Logs",
+      "type": "airtable_create",
+      "description": "Create an interaction log record documenting the escalation event for audit trail",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Interaction_Logs",
+        "fields": {
+          "work_item_id": "{{overdue_metrics.record_id}}",
+          "person_id": [],
+          "direction": "SYSTEM",
+          "channel": "SYSTEM",
+          "message_type": "ESCALATION",
+          "message_content": "SLA Monitor: {{resolved_action.action}} - Escalation level {{overdue_metrics.current_escalation_level}} -> {{overdue_metrics.required_escalation_level}}. Item SF-{{overdue_metrics.work_item_id}} ({{overdue_metrics.urgency}}) overdue by {{overdue_metrics.minutes_overdue}} minutes in state {{overdue_metrics.current_state}}. Action: {{resolved_action.notification_type}}.",
+          "llm_processed": false,
+          "delivery_status": "DELIVERED",
+          "created_at": "{{now}}",
+          "scenario_execution_id": "{{executionId}}"
+        }
+      },
+      "output": "escalation_log",
+      "error_handler": {
+        "type": "ignore",
+        "note": "Logging failure should not block escalation processing"
+      }
+    },
+    {
+      "id": 99,
+      "name": "Global Error Handler",
+      "type": "error_handler",
+      "description": "Catch any unhandled errors and route to Scenario E (DLQ)",
+      "config": {
+        "actions": [
+          {
+            "type": "webhook_call",
+            "url": "{{MAKE_WEBHOOK_URL_SCENARIO_E}}",
+            "method": "POST",
+            "body": {
+              "scenario": "SCENARIO_D_SLA",
+              "error_type": "{{error.type}}",
+              "error_message": "{{error.message}}",
+              "module_id": "{{error.module_id}}",
+              "module_name": "{{error.module_name}}",
+              "severity": "{{if(error.type = 'RuntimeError', 'CRITICAL', if(error.type = 'ConnectionError', 'HIGH', 'MEDIUM'))}}",
+              "payload": {
+                "work_item_id": "{{ifempty(overdue_metrics.work_item_id, '')}}",
+                "current_state": "{{ifempty(overdue_metrics.current_state, '')}}",
+                "urgency": "{{ifempty(overdue_metrics.urgency, '')}}",
+                "escalation_level": "{{ifempty(overdue_metrics.current_escalation_level, '')}}"
+              },
+              "execution_id": "{{executionId}}",
+              "timestamp": "{{now}}"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "connections": [
+    { "from": 1, "to": 2 },
+    { "from": 2, "to": 3 },
+    { "from": 3, "to": 4 },
+    { "from": 4, "to": 5 },
+    { "from": 5, "to": 6 },
+    { "from": 6, "to": 7 },
+    { "from": 7, "to": [8, 9, 10, 11, 12, 13, 14, 15] },
+    { "from": [8, 9, 10, 11, 12, 13, 14, 15], "to": 16 },
+    { "from": 16, "to": 17 },
+    { "from": 17, "to": [18, 19, 20, 21] },
+    { "from": [18, 19, 20, 21], "to": 22 },
+    { "from": 22, "to": 23 },
+    { "from": 23, "to": [24, 25, 26, 28] },
+    { "from": 20, "to": 27, "condition": "trigger_auto_reassign = true" },
+    { "from": [24, 25, 26], "to": 28 },
+    { "from": 28, "to": 29 }
+  ],
+  "env_vars": [
+    "AIRTABLE_BASE_ID",
+    "AIRTABLE_API_KEY",
+    "MAKE_WEBHOOK_URL_SCENARIO_B",
+    "MAKE_WEBHOOK_URL_SCENARIO_C",
+    "MAKE_WEBHOOK_URL_SCENARIO_E"
+  ],
+  "operations_estimate": {
+    "per_run": 50,
+    "daily_average": 200,
+    "monthly_estimate": 6000,
+    "notes": "Varies significantly based on overdue item count. Emergency periods may spike to 200+ operations per run."
+  }
+}

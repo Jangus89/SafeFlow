@@ -1,0 +1,122 @@
+{
+  "scenario_id": "scenario-c-outbound",
+  "name": "Outbound Message Sender",
+  "version": "1.0.0",
+  "status": "production",
+  "trigger_type": "webhook",
+  "schedule": null,
+  "dependencies": {
+    "upstream": ["scenario-b-state-engine", "scenario-d-sla"],
+    "downstream": ["scenario-e-dlq"],
+    "data_stores": ["DS_OUTBOUND_DEDUPE"],
+    "airtable_tables": ["People", "Interaction_Logs"],
+    "external_apis": ["360dialog"]
+  },
+  "env_vars": {
+    "MAKE_WEBHOOK_URL_SCENARIO_C": {
+      "description": "This scenario's webhook URL",
+      "required": true
+    },
+    "MAKE_WEBHOOK_URL_SCENARIO_E": {
+      "description": "Error Handler / DLQ webhook URL",
+      "required": true
+    },
+    "360DIALOG_API_KEY": {
+      "description": "360dialog API key for sending messages",
+      "required": true
+    },
+    "AIRTABLE_BASE_ID": {
+      "description": "Airtable base ID",
+      "required": true
+    },
+    "AIRTABLE_API_KEY": {
+      "description": "Airtable personal access token",
+      "required": true
+    },
+    "DS_OUTBOUND_DEDUPE": {
+      "description": "Make.com data store ID for outbound deduplication",
+      "required": true
+    }
+  },
+  "rate_limits": {
+    "360dialog": "250 messages/second (Cloud API tier)",
+    "airtable": "5 requests/second per base",
+    "make_webhook": "no limit (queued)"
+  },
+  "monitoring": {
+    "success_metric": "Messages delivered without error",
+    "error_threshold": "5% delivery failure rate triggers alert",
+    "latency_target": "< 3 seconds end-to-end per message"
+  },
+  "whatsapp_templates": {
+    "registered": [
+      {
+        "name": "job_created_confirmation",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["recipient_name", "work_item_id", "title", "urgency"]
+      },
+      {
+        "name": "job_accepted_notification",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["work_item_id", "title", "contractor_name"]
+      },
+      {
+        "name": "escalation_alert",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["work_item_id", "title", "urgency", "reason"]
+      },
+      {
+        "name": "clarification_reminder",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["recipient_name", "work_item_id", "title"]
+      },
+      {
+        "name": "clarification_auto_cancel",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["recipient_name", "work_item_id", "title"]
+      },
+      {
+        "name": "verification_reminder",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["recipient_name", "work_item_id", "title"]
+      },
+      {
+        "name": "verification_auto_close",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["recipient_name", "work_item_id", "title"]
+      },
+      {
+        "name": "escalation_level_1_nudge",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["work_item_id", "title", "urgency", "minutes_overdue"]
+      },
+      {
+        "name": "escalation_level_2_supervisor",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["work_item_id", "title", "urgency", "minutes_overdue", "current_assignee"]
+      },
+      {
+        "name": "escalation_level_3_critical",
+        "language": "en_GB",
+        "category": "UTILITY",
+        "parameters": ["work_item_id", "title", "urgency", "minutes_overdue", "current_assignee"]
+      }
+    ]
+  },
+  "changelog": [
+    {
+      "version": "1.0.0",
+      "date": "2026-02-15",
+      "changes": "Initial outbound sender with template, text, and interactive message support, deduplication, recipient resolution, and error handling with retry"
+    }
+  ]
+}

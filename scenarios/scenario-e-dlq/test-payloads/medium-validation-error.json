@@ -1,0 +1,28 @@
+{
+  "description": "Medium severity - LLM response failed JSON validation",
+  "payload": {
+    "scenario": "SCENARIO_B_STATE_ENGINE",
+    "severity": "MEDIUM",
+    "error_type": "VALIDATION_ERROR",
+    "error_message": "Claude API response is not valid JSON: Unexpected token at position 1247",
+    "module_id": 5,
+    "module_name": "LLM Triage - Parse Response",
+    "stack_trace": "JSON.parse() failed on Claude response.\nRaw response starts with: '{\"triage\":{\"discipline\":\"PLUMBING\",\"urgency\":...'\nTruncated at 1500 tokens.",
+    "original_payload": {
+      "work_item_id": "rec_abc456",
+      "message_text": "Tap's dripping in the kitchen on the second floor"
+    },
+    "retry_count": 1,
+    "max_retries": 3,
+    "execution_id": "exec_ghi789",
+    "timestamp": "2026-02-15T14:22:00Z"
+  },
+  "expected_behaviour": {
+    "severity_classification": "MEDIUM",
+    "should_create_error_record": true,
+    "should_alert_slack": false,
+    "should_attempt_retry": true,
+    "retry_delay_seconds": 120,
+    "include_in_daily_digest": true
+  }
+}

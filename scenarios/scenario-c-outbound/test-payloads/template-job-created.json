@@ -1,0 +1,40 @@
+{
+  "description": "Outbound template message confirming a new job has been created. Sent by Scenario B after a new work item reaches ASSESSMENT state. Uses the pre-approved job_created_confirmation HSM template.",
+  "payload": {
+    "recipient": {
+      "person_id": "recABC123DEF456",
+      "phone": "447700900123",
+      "name": "Sarah Mitchell"
+    },
+    "message_type": "template",
+    "template": {
+      "name": "job_created_confirmation",
+      "language": "en_GB",
+      "components": [
+        {
+          "type": "body",
+          "parameters": [
+            { "type": "text", "text": "Sarah" },
+            { "type": "text", "text": "SF-1044" },
+            { "type": "text", "text": "Broken cold water tap - ground floor kitchen, Meridian House" },
+            { "type": "text", "text": "URGENT" }
+          ]
+        }
+      ]
+    },
+    "work_item_id": "1044",
+    "notification_type": "JOB_CREATED",
+    "source": "STATE_ENGINE"
+  },
+  "expected_behaviour": {
+    "should_resolve_recipient": false,
+    "recipient_phone": "447700900123",
+    "should_pass_dedupe": true,
+    "message_route": "8a - Template Message",
+    "api_endpoint": "https://waba.360dialog.io/v1/messages",
+    "api_body_type": "template",
+    "should_create_interaction_log": true,
+    "interaction_log_direction": "OUTBOUND",
+    "delivery_status": "SENT"
+  }
+}

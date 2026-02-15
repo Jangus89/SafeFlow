@@ -1,0 +1,86 @@
+name: Test LLM Prompts
+
+on:
+  pull_request:
+    paths:
+      - 'llm-prompts/**'
+  workflow_dispatch:
+    inputs:
+      prompt:
+        description: 'Prompt to test (e.g., intake-triage)'
+        required: true
+        default: 'intake-triage'
+      limit:
+        description: 'Number of test cases to run (0 for all)'
+        required: false
+        default: '20'
+
+jobs:
+  validate-prompts:
+    name: Validate Prompt Files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate test cases JSON
+        run: |
+          python3 -c "
+          import json, glob, sys
+          errors = []
+          for f in glob.glob('llm-prompts/**/test-cases/*.json', recursive=True):
+              try:
+                  with open(f) as fh:
+                      data = json.load(fh)
+                  if 'test_cases' in data:
+                      count = len(data['test_cases'])
+                      print(f'PASS: {f} ({count} test cases)')
+                  else:
+                      errors.append(f'{f}: missing test_cases array')
+              except json.JSONDecodeError as e:
+                  errors.append(f'{f}: invalid JSON - {e}')
+          if errors:
+              for e in errors:
+                  print(f'ERROR: {e}')
+              sys.exit(1)
+          "
+
+      - name: Check prompt versions exist
+        run: |
+          for prompt_dir in llm-prompts/*/; do
+            if [ -d "${prompt_dir}versions" ]; then
+              count=$(ls -1 "${prompt_dir}versions/"*.txt 2>/dev/null | wc -l)
+              echo "PASS: ${prompt_dir} has ${count} version(s)"
+            fi
+          done
+
+  evaluate-prompts:
+    name: Evaluate Prompt Accuracy
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    needs: validate-prompts
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install anthropic
+
+      - name: Run evaluation
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          python llm-prompts/evaluation/evaluate-prompt.py \
+            --prompt ${{ github.event.inputs.prompt }} \
+            --limit ${{ github.event.inputs.limit }} \
+            --json
+
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:
+          name: prompt-evaluation-results
+          path: llm-prompts/*/evaluation-results/*.json
+          retention-days: 30

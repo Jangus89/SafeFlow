@@ -1,0 +1,115 @@
+%% SafeFlow Work Order State Machine
+%% 12 states, 18+ transitions
+%% Version: 1.0.0
+%% Last Updated: 15/02/2026
+%%
+%% State Descriptions:
+%%   INTAKE           - Initial message received; system is parsing and understanding the request
+%%   CLARIFICATION    - AI requires additional information from the tenant before triage
+%%   ASSESSMENT       - Issue fully understood; evaluating urgency, category, and SLA requirements
+%%   ASSIGNED         - Contractor or engineer matched and notified; awaiting acceptance
+%%   IN_PROGRESS      - Contractor has accepted; work is underway
+%%   VERIFICATION     - Work marked complete; tenant asked to confirm resolution
+%%   PAYMENT_PENDING  - Tenant confirmed; contractor invoice being processed via Xero
+%%   CLOSED           - Job resolved, invoice paid, record retained for audit
+%%   ESCALATED        - Escalated to property manager due to SLA breach, dispute, or unavailability
+%%   ON_HOLD          - Temporarily paused awaiting approval, parts, or external dependency
+%%   CANCELLED        - Cancelled by tenant or manager; reason logged for audit
+%%   REOPENED         - Previously closed job reopened within 30-day warranty window
+
+stateDiagram-v2
+    [*] --> INTAKE : Tenant sends WhatsApp message
+
+    %% ─── INTAKE transitions ────────────────────────────────────────────
+    %% Trigger: LLM triage determines sufficient detail exists
+    INTAKE --> ASSESSMENT : LLM confidence >= 0.7\n(sufficient detail for triage)
+
+    %% Trigger: LLM triage determines insufficient detail
+    INTAKE --> CLARIFICATION : LLM confidence < 0.7\n(vague message, missing location/detail)
+
+    %% Trigger: Tenant sends CANCEL command
+    INTAKE --> CANCELLED : Tenant cancels request
+
+    %% ─── CLARIFICATION transitions ─────────────────────────────────────
+    %% Trigger: Tenant provides additional detail; LLM re-evaluates
+    CLARIFICATION --> ASSESSMENT : Tenant provides detail\n(LLM re-triage confidence >= 0.7)
+
+    %% Trigger: No tenant response within 48 hours (Scenario D auto-transition)
+    CLARIFICATION --> ESCALATED : No response timeout\n(48 hours elapsed)
+
+    %% Trigger: Tenant sends CANCEL command
+    CLARIFICATION --> CANCELLED : Tenant cancels request
+
+    %% ─── ASSESSMENT transitions ────────────────────────────────────────
+    %% Trigger: Contractor matched by discipline, coverage, availability
+    ASSESSMENT --> ASSIGNED : Contractor matched\n(discipline + postcode + availability)
+
+    %% Trigger: No suitable contractor available in coverage area
+    ASSESSMENT --> ESCALATED : No contractor available\n(trade/area gap)
+
+    %% Trigger: Cost exceeds auto-approval threshold; requires manager sign-off
+    ASSESSMENT --> ON_HOLD : Awaiting manager approval\n(cost > threshold or policy)
+
+    %% ─── ON_HOLD transitions ───────────────────────────────────────────
+    %% Trigger: Manager sends APPROVE command
+    ON_HOLD --> ASSESSMENT : Manager approves\n(re-enters assignment flow)
+
+    %% Trigger: Manager sends CANCEL/REJECT command
+    ON_HOLD --> CANCELLED : Manager rejects\n(reason logged)
+
+    %% ─── ASSIGNED transitions ──────────────────────────────────────────
+    %% Trigger: Contractor sends ACCEPT command via WhatsApp
+    ASSIGNED --> IN_PROGRESS : Contractor accepts job\n(ACCEPT command)
+
+    %% Trigger: Contractor sends REJECT command; returns to pool for re-assignment
+    ASSIGNED --> ASSESSMENT : Contractor declines\n(REJECT command, re-assignment)
+
+    %% Trigger: No contractor response within 24 hours (Scenario D auto-transition)
+    ASSIGNED --> ESCALATED : No contractor response\n(24 hours elapsed)
+
+    %% ─── IN_PROGRESS transitions ───────────────────────────────────────
+    %% Trigger: Contractor sends DONE command with optional evidence photo
+    IN_PROGRESS --> VERIFICATION : Work completed\n(DONE command + evidence)
+
+    %% Trigger: SLA resolution deadline breached (Scenario D auto-transition)
+    IN_PROGRESS --> ESCALATED : SLA breach\n(resolution deadline passed)
+
+    %% Trigger: Contractor sends HOLD command (awaiting parts, access, etc.)
+    IN_PROGRESS --> ON_HOLD : Parts on order / blocked\n(HOLD command + reason)
+
+    %% ─── VERIFICATION transitions ──────────────────────────────────────
+    %% Trigger: Tenant confirms work is satisfactory (CONFIRM_COMPLETE or button reply)
+    VERIFICATION --> PAYMENT_PENDING : Tenant confirms\n(work verified satisfactory)
+
+    %% Trigger: Tenant reports work not satisfactory; returns to contractor
+    VERIFICATION --> IN_PROGRESS : Tenant rejects\n(work not satisfactory)
+
+    %% Trigger: Tenant raises formal dispute about quality or scope
+    VERIFICATION --> ESCALATED : Dispute raised\n(quality/scope disagreement)
+
+    %% ─── PAYMENT_PENDING transitions ───────────────────────────────────
+    %% Trigger: Xero invoice processed and payment confirmed
+    PAYMENT_PENDING --> CLOSED : Payment processed\n(Xero invoice paid)
+
+    %% Trigger: Invoice amount disputed by manager or finance
+    PAYMENT_PENDING --> ESCALATED : Invoice dispute\n(amount/scope mismatch)
+
+    %% ─── CLOSED transitions ────────────────────────────────────────────
+    %% Trigger: Tenant reports same issue within 30-day warranty window
+    CLOSED --> REOPENED : Issue recurs\n(within 30-day warranty)
+
+    CLOSED --> [*]
+
+    %% ─── REOPENED transitions ──────────────────────────────────────────
+    %% Trigger: System re-triages the reopened issue
+    REOPENED --> ASSESSMENT : Re-triaged\n(new assessment with history context)
+
+    %% ─── ESCALATED transitions ─────────────────────────────────────────
+    %% Trigger: Property manager resolves the escalation and returns to workflow
+    ESCALATED --> ASSESSMENT : Manager resolves\n(reassigned to workflow)
+
+    %% Trigger: Property manager decides to cancel the work item
+    ESCALATED --> CANCELLED : Manager cancels\n(unresolvable or duplicate)
+
+    %% ─── CANCELLED terminal state ──────────────────────────────────────
+    CANCELLED --> [*]

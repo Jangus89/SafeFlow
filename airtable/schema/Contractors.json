@@ -1,0 +1,301 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblContractors",
+  "name": "Contractors",
+  "description": "External contractor companies and sole traders available for facilities management work. Tracks trade disciplines, certifications (Gas Safe, NICEIC), coverage areas, and commercial terms.",
+  "record_count_estimate": "Medium volume - typically hundreds of contractor records",
+  "primary_field": "company_name",
+  "fields": [
+    {
+      "field_id": "fldConAutoId",
+      "name": "contractor_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each contractor"
+    },
+    {
+      "field_id": "fldConCompanyName",
+      "name": "company_name",
+      "type": "singleLineText",
+      "description": "Registered company name or sole trader trading name"
+    },
+    {
+      "field_id": "fldConPrimaryContact",
+      "name": "primary_contact_name",
+      "type": "singleLineText",
+      "description": "Name of the main point of contact at the contractor company"
+    },
+    {
+      "field_id": "fldConEmail",
+      "name": "email",
+      "type": "email",
+      "description": "Primary email address for business communications"
+    },
+    {
+      "field_id": "fldConPhone",
+      "name": "phone",
+      "type": "phoneNumber",
+      "description": "Primary telephone number in +44 format"
+    },
+    {
+      "field_id": "fldConWhatsApp",
+      "name": "whatsapp_number",
+      "type": "phoneNumber",
+      "description": "WhatsApp number for receiving job notifications and updates in +44 format"
+    },
+    {
+      "field_id": "fldConTrades",
+      "name": "trade_disciplines",
+      "type": "multipleSelects",
+      "description": "Trade disciplines the contractor is qualified to perform",
+      "options": {
+        "choices": [
+          { "name": "PLUMBING", "color": "blueLight2" },
+          { "name": "ELECTRICAL", "color": "yellowLight2" },
+          { "name": "GAS_SAFE", "color": "redLight2" },
+          { "name": "HVAC", "color": "cyanLight2" },
+          { "name": "LIFT_ENGINEER", "color": "purpleLight2" },
+          { "name": "FIRE_SAFETY", "color": "orangeLight2" },
+          { "name": "GENERAL_MAINTENANCE", "color": "greenLight2" },
+          { "name": "SPECIALIST", "color": "pinkLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldConCoveragePostcodes",
+      "name": "coverage_postcodes",
+      "type": "multilineText",
+      "description": "Comma-separated UK postcode prefixes indicating coverage area (e.g. SW, EC, SE1, W1)"
+    },
+    {
+      "field_id": "fldConGasSafeNum",
+      "name": "gas_safe_number",
+      "type": "singleLineText",
+      "description": "Gas Safe Register number, required for GAS_SAFE discipline work"
+    },
+    {
+      "field_id": "fldConGasSafeExpiry",
+      "name": "gas_safe_expiry",
+      "type": "date",
+      "description": "Gas Safe registration expiry date",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" }
+      }
+    },
+    {
+      "field_id": "fldConNiceicNum",
+      "name": "niceic_number",
+      "type": "singleLineText",
+      "description": "NICEIC registration number for electrical contractors"
+    },
+    {
+      "field_id": "fldConNiceicExpiry",
+      "name": "niceic_expiry",
+      "type": "date",
+      "description": "NICEIC registration expiry date",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" }
+      }
+    },
+    {
+      "field_id": "fldConOtherCerts",
+      "name": "other_certifications",
+      "type": "multilineText",
+      "description": "Additional certifications and accreditations (e.g. CITB, CSCS, F-Gas, IPAF)"
+    },
+    {
+      "field_id": "fldConHourlyRate",
+      "name": "hourly_rate",
+      "type": "currency",
+      "description": "Standard hourly rate excluding VAT",
+      "options": {
+        "precision": 2,
+        "symbol": "\u00a3"
+      }
+    },
+    {
+      "field_id": "fldConCalloutFee",
+      "name": "callout_fee",
+      "type": "currency",
+      "description": "Fixed callout fee charged per visit, excluding VAT",
+      "options": {
+        "precision": 2,
+        "symbol": "\u00a3"
+      }
+    },
+    {
+      "field_id": "fldConEmergencyAvailable",
+      "name": "emergency_available",
+      "type": "checkbox",
+      "description": "Whether the contractor is available for emergency out-of-hours callouts",
+      "options": {
+        "icon": "check",
+        "color": "redBright"
+      }
+    },
+    {
+      "field_id": "fldConAvgResponse",
+      "name": "average_response_hours",
+      "type": "number",
+      "description": "Historical average response time in hours from job assignment to arrival on site",
+      "options": {
+        "precision": 1
+      }
+    },
+    {
+      "field_id": "fldConRating",
+      "name": "rating",
+      "type": "rating",
+      "description": "Overall performance rating based on quality, timeliness, and communication",
+      "options": {
+        "max": 5,
+        "icon": "star",
+        "color": "yellowBright"
+      }
+    },
+    {
+      "field_id": "fldConTotalJobs",
+      "name": "total_jobs_completed",
+      "type": "rollup",
+      "description": "Total number of work items completed by this contractor",
+      "options": {
+        "linkedRecordFieldId": "fldConWorkItems",
+        "linkedRecordFieldIdInLinkedTable": "fldWIAutoId",
+        "formula": "COUNTA(values)"
+      }
+    },
+    {
+      "field_id": "fldConTotalValue",
+      "name": "total_jobs_value",
+      "type": "rollup",
+      "description": "Total value of all completed work items in GBP",
+      "options": {
+        "linkedRecordFieldId": "fldConWorkItems",
+        "linkedRecordFieldIdInLinkedTable": "fldWIActualCost",
+        "formula": "SUM(values)",
+        "resultFormat": {
+          "type": "currency",
+          "symbol": "\u00a3",
+          "precision": 2
+        }
+      }
+    },
+    {
+      "field_id": "fldConStatus",
+      "name": "status",
+      "type": "singleSelect",
+      "description": "Current status of the contractor in the system",
+      "options": {
+        "choices": [
+          { "name": "ACTIVE", "color": "greenBright" },
+          { "name": "SUSPENDED", "color": "redBright" },
+          { "name": "ONBOARDING", "color": "yellowBright" },
+          { "name": "ARCHIVED", "color": "grayLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldConPaymentTerms",
+      "name": "payment_terms",
+      "type": "singleSelect",
+      "description": "Agreed payment terms for invoices",
+      "options": {
+        "choices": [
+          { "name": "NET_7", "color": "greenLight2" },
+          { "name": "NET_14", "color": "blueLight2" },
+          { "name": "NET_30", "color": "yellowLight2" },
+          { "name": "NET_60", "color": "orangeLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldConXeroId",
+      "name": "xero_contact_id",
+      "type": "singleLineText",
+      "description": "Xero accounting software contact identifier for invoice synchronisation"
+    },
+    {
+      "field_id": "fldConCreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "Timestamp when the contractor record was created",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldConNotes",
+      "name": "notes",
+      "type": "multilineText",
+      "description": "Internal notes about the contractor, including any performance issues or special arrangements"
+    }
+  ],
+  "views": [
+    {
+      "name": "All Contractors",
+      "type": "grid",
+      "description": "Complete list of all contractor records",
+      "fields": "all",
+      "sort": [
+        { "field": "company_name", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Active by Trade",
+      "type": "grid",
+      "description": "Active contractors grouped by their trade disciplines",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "status", "operator": "isEqual", "value": "ACTIVE" }
+        ]
+      },
+      "group": [
+        { "field": "trade_disciplines", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "rating", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Gas Safe Certified",
+      "type": "grid",
+      "description": "Contractors with valid Gas Safe registration",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "gas_safe_number", "operator": "isNotEmpty" },
+          { "field": "status", "operator": "isEqual", "value": "ACTIVE" }
+        ]
+      },
+      "sort": [
+        { "field": "gas_safe_expiry", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Available for Emergency",
+      "type": "grid",
+      "description": "Contractors available for emergency out-of-hours work",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "emergency_available", "operator": "isEqual", "value": true },
+          { "field": "status", "operator": "isEqual", "value": "ACTIVE" }
+        ]
+      },
+      "sort": [
+        { "field": "average_response_hours", "direction": "asc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "has_many": ["Work_Items", "Quotes", "Payments"]
+  },
+  "field_count": 25,
+  "formula_count": 0,
+  "rollup_count": 2,
+  "link_count": 0
+}

@@ -1,0 +1,11 @@
+company_name,primary_contact_name,email,phone,whatsapp_number,trade_disciplines,coverage_postcodes,gas_safe_number,gas_safe_expiry,niceic_number,niceic_expiry,hourly_rate,callout_fee,emergency_available,average_response_hours,rating,status,payment_terms
+Thames Valley Plumbing Ltd,James Wilson,james@tvplumbing.co.uk,+447700900201,+447700900201,"PLUMBING","SW,SE,EC,WC,W,E,N,NW",,,,,"55.00","85.00",true,2,4,ACTIVE,NET_30
+Sparks Electrical Services,Sarah Chen,sarah@sparkselectrical.co.uk,+447700900202,+447700900202,"ELECTRICAL","BS,BA,GL","","","NICEIC/12345","31/12/2026","65.00","95.00",true,1.5,5,ACTIVE,NET_14
+SafeGas Engineering,Mohammed Ali,mohammed@safegas.co.uk,+447700900203,+447700900203,"GAS_SAFE,PLUMBING","SW,SE,EC,WC,W,N","GSR/543210","31/03/2027","","","70.00","120.00",true,1,5,ACTIVE,NET_30
+CoolAir HVAC Solutions,David Roberts,david@coolair.co.uk,+447700900204,+447700900204,"HVAC","National",,,,,"75.00","150.00",true,3,4,ACTIVE,NET_30
+LiftTech UK,Emma Thompson,emma@lifttech.co.uk,+447700900205,+447700900205,"LIFT_ENGINEER","National",,,,,"90.00","200.00",true,2,5,ACTIVE,NET_14
+FireSafe Systems,Tom Bradley,tom@firesafe.co.uk,+447700900206,+447700900206,"FIRE_SAFETY","BS,BA,GL,CF,SA",,,,,"60.00","100.00",false,4,4,ACTIVE,NET_30
+AllRound Maintenance,Lisa Patel,lisa@allround.co.uk,+447700900207,+447700900207,"GENERAL_MAINTENANCE","BS,BA",,,,,"45.00","60.00",false,4,3,ACTIVE,NET_14
+PestAway Services,Chris Morgan,chris@pestaway.co.uk,+447700900208,+447700900208,"GENERAL_MAINTENANCE","National",,,,,"50.00","75.00",false,24,4,ACTIVE,NET_30
+StructurePro Engineering,Dr Amir Khan,amir@structurepro.co.uk,+447700900209,+447700900209,"SPECIALIST","National",,,,,"120.00","250.00",false,48,5,ACTIVE,NET_60
+Watts Electrical London,Karen Davies,karen@wattslon.co.uk,+447700900210,+447700900210,"ELECTRICAL","SW,SE,EC,WC,W,E,N,NW","","","NICEIC/67890","30/06/2027","60.00","90.00",true,2,4,ACTIVE,NET_30

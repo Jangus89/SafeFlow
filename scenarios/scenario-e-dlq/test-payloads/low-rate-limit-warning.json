@@ -1,0 +1,26 @@
+{
+  "description": "Low severity - approaching Airtable rate limit",
+  "payload": {
+    "scenario": "SCENARIO_D_SLA",
+    "severity": "LOW",
+    "error_type": "RATE_LIMIT_WARNING",
+    "error_message": "Airtable API rate limit approaching: 4.2 requests/second (limit: 5/second)",
+    "module_id": 2,
+    "module_name": "Search Overdue Work Items",
+    "stack_trace": "GET https://api.airtable.com/v0/appXXX/Work_Items\nResponse header X-Airtable-Rate-Limit-Remaining: 8\nCurrent request rate: 4.2/s",
+    "original_payload": {
+      "check_type": "scheduled_sla_scan",
+      "items_checked": 47
+    },
+    "execution_id": "exec_jkl012",
+    "timestamp": "2026-02-15T09:00:15Z"
+  },
+  "expected_behaviour": {
+    "severity_classification": "LOW",
+    "should_create_error_record": true,
+    "should_alert_slack": false,
+    "should_attempt_retry": false,
+    "include_in_daily_digest": true,
+    "note": "Informational - no action needed unless sustained"
+  }
+}

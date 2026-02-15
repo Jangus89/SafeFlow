@@ -1,0 +1,1155 @@
+{
+  "name": "Scenario B - State Engine",
+  "version": "2.0.0",
+  "description": "Core business logic engine for the 12-state work order machine. Receives enriched payloads from Scenario A, performs intent classification via LLM triage, processes state transitions with validation and locking, persists state changes to Airtable, triggers side effects, and hands off to Scenario C for outbound notifications.",
+  "scheduling": {
+    "type": "instant",
+    "trigger": "webhook"
+  },
+  "state_machine": {
+    "states": [
+      "INTAKE",
+      "CLARIFICATION",
+      "ASSESSMENT",
+      "ASSIGNED",
+      "ACCEPTED",
+      "IN_PROGRESS",
+      "ON_HOLD",
+      "VERIFICATION",
+      "PAYMENT_PENDING",
+      "ESCALATED",
+      "CLOSED",
+      "CANCELLED"
+    ],
+    "transitions": {
+      "INTAKE": {
+        "allowed_next": ["CLARIFICATION", "ASSESSMENT", "CANCELLED"],
+        "description": "New issue received. LLM triage determines if enough detail exists or clarification is needed."
+      },
+      "CLARIFICATION": {
+        "allowed_next": ["ASSESSMENT", "CANCELLED"],
+        "description": "Awaiting further details from reporter. Clarification response returns to ASSESSMENT."
+      },
+      "ASSESSMENT": {
+        "allowed_next": ["ASSIGNED", "ESCALATED", "CANCELLED"],
+        "description": "Issue triaged, urgency set, discipline identified. Ready for assignment."
+      },
+      "ASSIGNED": {
+        "allowed_next": ["ACCEPTED", "ESCALATED", "CANCELLED"],
+        "description": "Engineer or contractor assigned. Awaiting acceptance."
+      },
+      "ACCEPTED": {
+        "allowed_next": ["IN_PROGRESS", "ON_HOLD", "ESCALATED", "CANCELLED"],
+        "description": "Assignee has accepted the job. Work not yet started."
+      },
+      "IN_PROGRESS": {
+        "allowed_next": ["VERIFICATION", "ON_HOLD", "ESCALATED"],
+        "description": "Work is actively underway."
+      },
+      "ON_HOLD": {
+        "allowed_next": ["IN_PROGRESS", "ASSIGNED", "ESCALATED", "CANCELLED"],
+        "description": "Work paused. Awaiting parts, access, or decision."
+      },
+      "VERIFICATION": {
+        "allowed_next": ["CLOSED", "REOPENED", "PAYMENT_PENDING"],
+        "description": "Contractor reports work done. Awaiting tenant/manager verification."
+      },
+      "PAYMENT_PENDING": {
+        "allowed_next": ["CLOSED"],
+        "description": "Work verified. Awaiting Xero invoice creation and payment processing."
+      },
+      "ESCALATED": {
+        "allowed_next": ["ASSIGNED", "IN_PROGRESS", "CANCELLED"],
+        "description": "SLA breached or manual escalation. Senior management attention required."
+      },
+      "CLOSED": {
+        "allowed_next": [],
+        "description": "Terminal state. Work completed, verified, and paid."
+      },
+      "CANCELLED": {
+        "allowed_next": [],
+        "description": "Terminal state. Work order cancelled by tenant, manager, or system."
+      }
+    }
+  },
+  "modules": [
+    {
+      "id": 1,
+      "name": "Webhook - Receive from Scenario A / D",
+      "type": "webhook",
+      "description": "Receives enriched payloads from Scenario A (inbound messages) and Scenario D (SLA escalations). Validates the X-Source-Scenario header to identify origin.",
+      "config": {
+        "webhook_url": "{{MAKE_WEBHOOK_URL_SCENARIO_B}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "string",
+          "X-Execution-Id": "string"
+        },
+        "data_structure": {
+          "message": {
+            "id": "string",
+            "text": "string",
+            "type": "text|image|document|audio|video|interactive|system",
+            "media_id": "string",
+            "timestamp": "string"
+          },
+          "person": {
+            "id": "string",
+            "phone": "string",
+            "name": "string",
+            "role": "TENANT|CONTRACTOR|ENGINEER|MANAGER|ADMIN|SYSTEM",
+            "site_id": "string"
+          },
+          "command": {
+            "is_command": "boolean",
+            "command": "DONE|ACCEPT|START|REJECT|CANCEL|HOLD|QUOTE|APPROVE|ESCALATE|CONFIRM_COMPLETE|REOPEN|string",
+            "job_id": "string"
+          },
+          "work_item": {
+            "exists": "boolean",
+            "id": "string",
+            "current_state": "string"
+          },
+          "interaction_log_id": "string",
+          "source_execution_id": "string"
+        }
+      },
+      "output": "inbound_payload"
+    },
+    {
+      "id": 2,
+      "name": "Load Work Item + Person + Site",
+      "type": "airtable_search",
+      "description": "Load the full work item record (if it exists), person details, and site configuration from Airtable. This provides the complete context needed for state transition decisions.",
+      "config": {
+        "requests": [
+          {
+            "name": "work_item_lookup",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "Work_Items",
+            "filter_formula": "{{if(inbound_payload.work_item.exists, '{RECORD_ID()} = \"' + inbound_payload.work_item.id + '\"', 'FALSE()')}}",
+            "max_records": 1,
+            "fields": [
+              "work_item_id",
+              "title",
+              "description",
+              "current_state",
+              "urgency",
+              "discipline_required",
+              "reported_by",
+              "assigned_engineer_id",
+              "contractor_id",
+              "site_id",
+              "sla_due_at",
+              "escalation_level",
+              "state_locked",
+              "state_started_at",
+              "state_history",
+              "created_at",
+              "updated_at",
+              "blocked_reason",
+              "priority_score",
+              "quote_amount",
+              "invoice_id"
+            ]
+          },
+          {
+            "name": "person_lookup",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "People",
+            "filter_formula": "{{'{RECORD_ID()} = \"' + inbound_payload.person.id + '\"'}}",
+            "max_records": 1,
+            "fields": [
+              "first_name",
+              "last_name",
+              "whatsapp_number",
+              "role",
+              "site_id",
+              "is_active",
+              "disciplines",
+              "contractor_company_id",
+              "max_workload",
+              "current_workload"
+            ]
+          },
+          {
+            "name": "site_lookup",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "Sites",
+            "filter_formula": "{{if(inbound_payload.person.site_id != '', '{RECORD_ID()} = \"' + inbound_payload.person.site_id + '\"', if(inbound_payload.work_item.exists, '{RECORD_ID()} = \"' + work_item_lookup[0].fields.site_id + '\"', 'FALSE()'))}}",
+            "max_records": 1,
+            "fields": [
+              "site_name",
+              "address",
+              "property_manager_id",
+              "supervisor_id",
+              "preferred_contractors",
+              "sla_overrides"
+            ]
+          }
+        ]
+      },
+      "output": {
+        "work_item": "work_item_lookup",
+        "person": "person_lookup",
+        "site": "site_lookup"
+      },
+      "error_handler": {
+        "type": "route",
+        "target_module": 99,
+        "note": "Route Airtable lookup failures to global error handler"
+      }
+    },
+    {
+      "id": 3,
+      "name": "Lock Check",
+      "type": "filter",
+      "description": "Check if the work item's state_locked field is set. If locked, another execution is currently processing a transition for this item. Reject to prevent race conditions.",
+      "config": {
+        "condition": "{{if(inbound_payload.work_item.exists = false, true, if(length(work_item_lookup) = 0, true, work_item_lookup[0].fields.state_locked != true))}}",
+        "fallback": "stop",
+        "fallback_action": {
+          "type": "webhook_call",
+          "url": "{{MAKE_WEBHOOK_URL_SCENARIO_E}}",
+          "method": "POST",
+          "body": {
+            "scenario": "SCENARIO_B_STATE_ENGINE",
+            "error_type": "STATE_LOCK_CONFLICT",
+            "error_message": "Work item is locked by another execution. Payload will be retried.",
+            "severity": "MEDIUM",
+            "payload": "{{toString(inbound_payload)}}",
+            "work_item_id": "{{inbound_payload.work_item.id}}",
+            "execution_id": "{{executionId}}",
+            "timestamp": "{{now}}",
+            "retry_eligible": true
+          }
+        },
+        "note": "Optimistic locking pattern. Locked items are sent to DLQ for automatic retry after a brief delay."
+      }
+    },
+    {
+      "id": 4,
+      "name": "Intent Router",
+      "type": "router",
+      "description": "Route the inbound payload based on its intent: explicit command, new issue, clarification response, media attachment, or RFQ (request for quote). Commands from Scenario D (SYSTEM role) bypass LLM triage.",
+      "config": {
+        "routes": [
+          {
+            "id": "4a",
+            "name": "Command",
+            "condition": "{{inbound_payload.command.is_command = true}}",
+            "target_module": 6,
+            "description": "Explicit command detected (DONE, ACCEPT, START, REJECT, CANCEL, HOLD, QUOTE, APPROVE, ESCALATE, CONFIRM_COMPLETE, REOPEN)"
+          },
+          {
+            "id": "4b",
+            "name": "New Issue (no existing work item)",
+            "condition": "{{inbound_payload.command.is_command = false AND inbound_payload.work_item.exists = false}}",
+            "target_module": 5,
+            "description": "Free-text message with no existing work item. Requires LLM triage."
+          },
+          {
+            "id": "4c",
+            "name": "Clarification Response",
+            "condition": "{{inbound_payload.command.is_command = false AND inbound_payload.work_item.exists = true AND inbound_payload.work_item.current_state = 'CLARIFICATION'}}",
+            "target_module": 5,
+            "description": "Reply to a clarification request. LLM evaluates if enough detail now exists."
+          },
+          {
+            "id": "4d",
+            "name": "Media Attachment",
+            "condition": "{{inbound_payload.command.is_command = false AND inbound_payload.work_item.exists = true AND (inbound_payload.message.type = 'image' OR inbound_payload.message.type = 'document' OR inbound_payload.message.type = 'audio' OR inbound_payload.message.type = 'video')}}",
+            "target_module": 5,
+            "description": "Media attached to existing work item. LLM evaluates context."
+          },
+          {
+            "id": "4e",
+            "name": "RFQ / Quote Submission",
+            "condition": "{{inbound_payload.command.is_command = false AND inbound_payload.work_item.exists = true AND inbound_payload.person.role = 'CONTRACTOR' AND test(inbound_payload.message.text, '(?i)(quote|price|cost|estimate|\\x{00A3})')}}",
+            "target_module": 5,
+            "description": "Contractor submitting a quote for an assigned job."
+          },
+          {
+            "id": "4f",
+            "name": "General Follow-up",
+            "condition": "{{inbound_payload.command.is_command = false AND inbound_payload.work_item.exists = true}}",
+            "target_module": 5,
+            "description": "General message about an existing work item. LLM determines intent."
+          }
+        ]
+      }
+    },
+    {
+      "id": 5,
+      "name": "LLM Triage - Claude API",
+      "type": "http_request",
+      "description": "Call the Claude API (Anthropic) with the intake-triage prompt. The LLM analyses the message content in the context of the current work item state and returns a structured JSON response with: intent classification, urgency assessment, discipline identification, extracted details, and recommended next state.",
+      "config": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "x-api-key": "{{ANTHROPIC_API_KEY}}",
+          "anthropic-version": "2023-06-01"
+        },
+        "body": {
+          "model": "{{LLM_MODEL_ID}}",
+          "max_tokens": 1024,
+          "system": "You are a UK commercial property facilities management triage assistant for the SafeFlow system. You analyse inbound WhatsApp messages from tenants, contractors, and property managers, and return structured JSON.\n\nYour task is to:\n1. Classify the intent of the message\n2. Assess urgency using UK facilities management standards\n3. Identify the required trade discipline\n4. Extract key details (location, issue description, affected systems)\n5. Determine if sufficient information exists for job creation or if clarification is needed\n6. Recommend the next state in the work order lifecycle\n\nUrgency levels:\n- EMERGENCY: Life safety, flooding, gas leak, fire, security breach (15 min response)\n- URGENT: No heating, no hot water, lift failure, major leak (1 hour response)\n- STANDARD: General repairs, minor plumbing, electrical faults (4 hour response)\n- SCHEDULED: Planned maintenance, inspections, cosmetic repairs (24 hour response)\n\nTrade disciplines: PLUMBING, ELECTRICAL, HVAC, GENERAL_MAINTENANCE, SECURITY, FIRE_SAFETY, LIFT_ENGINEERING, CLEANING, CARPENTRY, GLAZING, ROOFING, PEST_CONTROL, LOCKSMITH\n\nAlways respond with valid JSON matching this schema:\n{\n  \"intent\": \"NEW_ISSUE | CLARIFICATION_RESPONSE | STATUS_ENQUIRY | QUOTE_SUBMISSION | MEDIA_EVIDENCE | FOLLOW_UP | UNKNOWN\",\n  \"has_sufficient_detail\": true/false,\n  \"clarification_needed\": \"string (question to ask if detail insufficient)\",\n  \"urgency\": \"EMERGENCY | URGENT | STANDARD | SCHEDULED\",\n  \"discipline\": \"string\",\n  \"title\": \"string (concise issue title, max 80 chars)\",\n  \"description\": \"string (structured issue description)\",\n  \"location\": \"string (extracted location details)\",\n  \"recommended_state\": \"ASSESSMENT | CLARIFICATION\",\n  \"confidence\": 0.0-1.0,\n  \"reasoning\": \"string (brief explanation of triage decision)\"\n}",
+          "messages": [
+            {
+              "role": "user",
+              "content": "{{if(inbound_payload.work_item.exists, 'EXISTING WORK ITEM CONTEXT:\\nWork Item ID: SF-' + work_item_lookup[0].fields.work_item_id + '\\nTitle: ' + work_item_lookup[0].fields.title + '\\nCurrent State: ' + work_item_lookup[0].fields.current_state + '\\nUrgency: ' + work_item_lookup[0].fields.urgency + '\\nDiscipline: ' + work_item_lookup[0].fields.discipline_required + '\\n\\n', '')}}INBOUND MESSAGE:\\nFrom: {{inbound_payload.person.name}} ({{inbound_payload.person.role}})\\nSite: {{ifempty(site_lookup[0].fields.site_name, 'Unknown')}}\\nMessage Type: {{inbound_payload.message.type}}\\nMessage: {{inbound_payload.message.text}}{{if(inbound_payload.message.media_id, '\\n[Media attached: ' + inbound_payload.message.type + ']', '')}}"
+            }
+          ]
+        },
+        "timeout_ms": 30000,
+        "retry": {
+          "attempts": 2,
+          "delay_ms": 1000,
+          "on_status_codes": [429, 500, 502, 503]
+        }
+      },
+      "output": "llm_response",
+      "post_processing": {
+        "parse_json": "{{parseJSON(llm_response.content[0].text)}}",
+        "output_name": "triage_result"
+      },
+      "error_handler": {
+        "type": "route",
+        "target_module": 99,
+        "note": "LLM failures are critical - route to error handler. Include the raw payload for manual triage."
+      }
+    },
+    {
+      "id": 6,
+      "name": "Command Processing",
+      "type": "transformer",
+      "description": "Map explicit commands to state transitions. Each command is validated against the current state and the person's role to ensure the transition is permitted.",
+      "config": {
+        "mappings": {
+          "command": "{{inbound_payload.command.command}}",
+          "current_state": "{{ifempty(inbound_payload.work_item.current_state, '')}}",
+          "person_role": "{{inbound_payload.person.role}}",
+          "target_state": "{{switch(inbound_payload.command.command, 'DONE', 'VERIFICATION', 'ACCEPT', 'ACCEPTED', 'START', 'IN_PROGRESS', 'REJECT', 'ASSIGNED', 'CANCEL', 'CANCELLED', 'HOLD', 'ON_HOLD', 'QUOTE', 'ASSESSMENT', 'APPROVE', 'ASSIGNED', 'ESCALATE', 'ESCALATED', 'CONFIRM_COMPLETE', 'CLOSED', 'REOPEN', 'REOPENED', '')}}",
+          "valid_source_states": "{{switch(inbound_payload.command.command, 'DONE', parseJSON('[\"IN_PROGRESS\"]'), 'ACCEPT', parseJSON('[\"ASSIGNED\"]'), 'START', parseJSON('[\"ACCEPTED\"]'), 'REJECT', parseJSON('[\"ASSIGNED\"]'), 'CANCEL', parseJSON('[\"INTAKE\", \"CLARIFICATION\", \"ASSESSMENT\", \"ASSIGNED\", \"ACCEPTED\", \"ON_HOLD\"]'), 'HOLD', parseJSON('[\"IN_PROGRESS\", \"ACCEPTED\"]'), 'QUOTE', parseJSON('[\"ASSIGNED\", \"ACCEPTED\"]'), 'APPROVE', parseJSON('[\"ASSESSMENT\", \"VERIFICATION\"]'), 'ESCALATE', parseJSON('[\"INTAKE\", \"CLARIFICATION\", \"ASSESSMENT\", \"ASSIGNED\", \"ACCEPTED\", \"IN_PROGRESS\", \"ON_HOLD\"]'), 'CONFIRM_COMPLETE', parseJSON('[\"VERIFICATION\"]'), 'REOPEN', parseJSON('[\"CLOSED\"]'), parseJSON('[]'))}}",
+          "permitted_roles": "{{switch(inbound_payload.command.command, 'DONE', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'ACCEPT', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'START', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'REJECT', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'CANCEL', parseJSON('[\"TENANT\", \"MANAGER\", \"ADMIN\", \"SYSTEM\"]'), 'HOLD', parseJSON('[\"MANAGER\", \"ADMIN\", \"CONTRACTOR\", \"ENGINEER\"]'), 'QUOTE', parseJSON('[\"CONTRACTOR\"]'), 'APPROVE', parseJSON('[\"MANAGER\", \"ADMIN\"]'), 'ESCALATE', parseJSON('[\"MANAGER\", \"ADMIN\", \"SYSTEM\"]'), 'CONFIRM_COMPLETE', parseJSON('[\"TENANT\", \"MANAGER\", \"ADMIN\"]'), 'REOPEN', parseJSON('[\"TENANT\", \"MANAGER\", \"ADMIN\"]'), parseJSON('[]'))}}",
+          "transition_reason": "{{switch(inbound_payload.command.command, 'DONE', 'Contractor marked work as complete', 'ACCEPT', 'Assignee accepted the job', 'START', 'Assignee started work on site', 'REJECT', 'Assignee rejected the job assignment', 'CANCEL', 'Work order cancelled by ' + inbound_payload.person.role, 'HOLD', 'Work placed on hold by ' + inbound_payload.person.role, 'QUOTE', 'Quote submitted by contractor', 'APPROVE', 'Approved by ' + inbound_payload.person.role, 'ESCALATE', 'Escalated by ' + inbound_payload.person.role, 'CONFIRM_COMPLETE', 'Completion confirmed and verified', 'REOPEN', 'Work order reopened by ' + inbound_payload.person.role, 'Unknown command')}}",
+          "extract_quote_amount": "{{if(inbound_payload.command.command = 'QUOTE', first(match(inbound_payload.message.text, '(?i)\\x{00A3}\\s*([\\d,]+\\.?\\d{0,2})')), '')}}",
+          "is_system_action": "{{if(inbound_payload.person.role = 'SYSTEM', true, false)}}"
+        }
+      },
+      "output": "command_result"
+    },
+    {
+      "id": 7,
+      "name": "State Transition Validator",
+      "type": "transformer",
+      "description": "Validate the proposed state transition. Checks: (1) current state permits the target state, (2) the person's role is authorised for this transition, (3) no business rule violations. If validation fails, prepare a rejection message for the user.",
+      "config": {
+        "mappings": {
+          "source": "{{if(inbound_payload.command.is_command, 'COMMAND', 'LLM_TRIAGE')}}",
+          "proposed_target_state": "{{if(inbound_payload.command.is_command, command_result.target_state, if(triage_result.has_sufficient_detail, triage_result.recommended_state, 'CLARIFICATION'))}}",
+          "current_state": "{{ifempty(inbound_payload.work_item.current_state, 'NEW')}}",
+          "is_new_work_item": "{{if(inbound_payload.work_item.exists = false AND (ifempty(triage_result.recommended_state, '') = 'ASSESSMENT' OR ifempty(triage_result.recommended_state, '') = 'CLARIFICATION'), true, false)}}",
+          "is_valid_transition": "{{if(inbound_payload.work_item.exists = false, true, if(inbound_payload.command.is_command, if(contains(command_result.valid_source_states, inbound_payload.work_item.current_state), true, false), true))}}",
+          "is_role_permitted": "{{if(inbound_payload.person.role = 'SYSTEM', true, if(inbound_payload.command.is_command, if(contains(command_result.permitted_roles, inbound_payload.person.role), true, false), true))}}",
+          "validation_passed": "{{if(inbound_payload.work_item.exists = false, true, if(inbound_payload.command.is_command, if(contains(command_result.valid_source_states, inbound_payload.work_item.current_state) AND contains(command_result.permitted_roles, inbound_payload.person.role), true, false), true))}}",
+          "rejection_reason": "{{if(inbound_payload.command.is_command AND inbound_payload.work_item.exists, if(contains(command_result.valid_source_states, inbound_payload.work_item.current_state) = false, 'This action is not available for a job in the current state (' + inbound_payload.work_item.current_state + '). Please check the job status and try again.', if(contains(command_result.permitted_roles, inbound_payload.person.role) = false, 'You do not have permission to perform this action. This action is restricted to: ' + join(command_result.permitted_roles, ', ') + '.', '')), '')}}",
+          "final_target_state": "{{if(inbound_payload.command.is_command, command_result.target_state, if(inbound_payload.work_item.exists = false, if(ifempty(triage_result.has_sufficient_detail, false), 'ASSESSMENT', 'CLARIFICATION'), if(inbound_payload.work_item.current_state = 'CLARIFICATION' AND ifempty(triage_result.has_sufficient_detail, false), 'ASSESSMENT', inbound_payload.work_item.current_state)))}}",
+          "transition_reason": "{{if(inbound_payload.command.is_command, command_result.transition_reason, if(inbound_payload.work_item.exists = false, if(ifempty(triage_result.has_sufficient_detail, false), 'New issue triaged by LLM: ' + ifempty(triage_result.title, 'Untitled'), 'New issue requires clarification'), if(inbound_payload.work_item.current_state = 'CLARIFICATION', 'Clarification response received and assessed by LLM', 'Additional information received for existing work item')))}}",
+          "urgency": "{{ifempty(triage_result.urgency, ifempty(work_item_lookup[0].fields.urgency, 'STANDARD'))}}",
+          "discipline": "{{ifempty(triage_result.discipline, ifempty(work_item_lookup[0].fields.discipline_required, ''))}}",
+          "title": "{{ifempty(triage_result.title, ifempty(work_item_lookup[0].fields.title, ''))}}",
+          "description": "{{ifempty(triage_result.description, '')}}"
+        }
+      },
+      "output": "validated_transition"
+    },
+    {
+      "id": 8,
+      "name": "Filter - Validation Passed",
+      "type": "router",
+      "description": "Route based on validation result. If validation failed, send rejection message to user. If passed, proceed with state change.",
+      "config": {
+        "routes": [
+          {
+            "id": "8a",
+            "name": "Validation Passed",
+            "condition": "{{validated_transition.validation_passed = true}}",
+            "target_module": 9
+          },
+          {
+            "id": "8b",
+            "name": "Validation Failed - Notify User",
+            "condition": "{{validated_transition.validation_passed = false}}",
+            "target_module": 13
+          }
+        ]
+      }
+    },
+    {
+      "id": 9,
+      "name": "Acquire State Lock",
+      "type": "airtable_update",
+      "description": "Set state_locked = true on the work item to prevent concurrent modifications. For new work items, this step is skipped (handled by the create operation).",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Work_Items",
+        "record_id": "{{if(inbound_payload.work_item.exists, inbound_payload.work_item.id, '')}}",
+        "skip_if": "{{validated_transition.is_new_work_item}}",
+        "fields": {
+          "state_locked": true,
+          "state_locked_by": "{{executionId}}",
+          "state_locked_at": "{{now}}"
+        }
+      },
+      "output": "lock_result",
+      "error_handler": {
+        "type": "route",
+        "target_module": 99,
+        "note": "If locking fails, route to error handler to avoid processing without lock"
+      }
+    },
+    {
+      "id": 10,
+      "name": "Persist State Change",
+      "type": "airtable_upsert",
+      "description": "Create a new work item (for new issues) or update the existing work item with the new state, updated fields, and appended state history. Also calculates and sets SLA deadlines based on urgency.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Work_Items",
+        "record_id": "{{if(inbound_payload.work_item.exists, inbound_payload.work_item.id, '')}}",
+        "fields": {
+          "title": "{{if(validated_transition.is_new_work_item, validated_transition.title, undefined)}}",
+          "description": "{{if(validated_transition.is_new_work_item, validated_transition.description, undefined)}}",
+          "current_state": "{{validated_transition.final_target_state}}",
+          "previous_state": "{{ifempty(inbound_payload.work_item.current_state, '')}}",
+          "urgency": "{{if(validated_transition.is_new_work_item, validated_transition.urgency, undefined)}}",
+          "discipline_required": "{{if(validated_transition.is_new_work_item, validated_transition.discipline, undefined)}}",
+          "reported_by": "{{if(validated_transition.is_new_work_item, [inbound_payload.person.id], undefined)}}",
+          "site_id": "{{if(validated_transition.is_new_work_item, [ifempty(inbound_payload.person.site_id, '')], undefined)}}",
+          "state_started_at": "{{now}}",
+          "state_locked": false,
+          "state_locked_by": "",
+          "state_locked_at": "",
+          "updated_at": "{{now}}",
+          "created_at": "{{if(validated_transition.is_new_work_item, now, undefined)}}",
+          "sla_due_at": "{{if(validated_transition.is_new_work_item, addMinutes(now, if(validated_transition.urgency = 'EMERGENCY', 240, if(validated_transition.urgency = 'URGENT', 1440, if(validated_transition.urgency = 'STANDARD', 4320, 20160)))), undefined)}}",
+          "sla_response_due_at": "{{if(validated_transition.is_new_work_item, addMinutes(now, if(validated_transition.urgency = 'EMERGENCY', 15, if(validated_transition.urgency = 'URGENT', 60, if(validated_transition.urgency = 'STANDARD', 240, 1440)))), undefined)}}",
+          "quote_amount": "{{if(inbound_payload.command.command = 'QUOTE', command_result.extract_quote_amount, undefined)}}",
+          "state_history": "{{if(inbound_payload.work_item.exists, ifempty(work_item_lookup[0].fields.state_history, '') + '\\n' + formatDate(now, 'YYYY-MM-DD HH:mm:ss') + ' | ' + ifempty(inbound_payload.work_item.current_state, 'NEW') + ' -> ' + validated_transition.final_target_state + ' | ' + validated_transition.transition_reason + ' | by ' + inbound_payload.person.name + ' (' + inbound_payload.person.role + ')', formatDate(now, 'YYYY-MM-DD HH:mm:ss') + ' | NEW -> ' + validated_transition.final_target_state + ' | ' + validated_transition.transition_reason + ' | by ' + inbound_payload.person.name + ' (' + inbound_payload.person.role + ')')}}"
+        }
+      },
+      "output": "persisted_work_item",
+      "error_handler": {
+        "type": "rollback",
+        "rollback_actions": [
+          {
+            "type": "airtable_update",
+            "description": "Release state lock on failure",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "Work_Items",
+            "record_id": "{{inbound_payload.work_item.id}}",
+            "fields": {
+              "state_locked": false,
+              "state_locked_by": "",
+              "state_locked_at": ""
+            }
+          }
+        ],
+        "then": {
+          "type": "route",
+          "target_module": 99
+        }
+      }
+    },
+    {
+      "id": 11,
+      "name": "Update Interaction Log - LLM Result",
+      "type": "airtable_update",
+      "description": "Update the interaction log record created by Scenario A with the LLM triage result, marking it as processed.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Interaction_Logs",
+        "record_id": "{{inbound_payload.interaction_log_id}}",
+        "skip_if": "{{if(inbound_payload.interaction_log_id = '', true, false)}}",
+        "fields": {
+          "work_item_id": "{{persisted_work_item.id}}",
+          "llm_processed": true,
+          "llm_intent": "{{ifempty(triage_result.intent, inbound_payload.command.command)}}",
+          "llm_confidence": "{{ifempty(triage_result.confidence, 1.0)}}",
+          "llm_reasoning": "{{ifempty(triage_result.reasoning, validated_transition.transition_reason)}}"
+        }
+      },
+      "output": "updated_interaction_log",
+      "error_handler": {
+        "type": "ignore",
+        "note": "Interaction log update is non-critical. Do not fail the execution over this."
+      }
+    },
+    {
+      "id": 12,
+      "name": "Side Effects Router",
+      "type": "router",
+      "description": "Route to appropriate side effects based on the new state. Side effects include notifications, invoice creation, contractor assignment, and escalation alerts.",
+      "config": {
+        "routes": [
+          {
+            "id": "12a",
+            "name": "New Issue Created - Notify Tenant + Assign",
+            "condition": "{{validated_transition.is_new_work_item = true AND validated_transition.final_target_state = 'ASSESSMENT'}}",
+            "target_module": 14,
+            "description": "New work item created with sufficient detail. Notify tenant of receipt, begin assignment process."
+          },
+          {
+            "id": "12b",
+            "name": "Clarification Needed - Ask Tenant",
+            "condition": "{{validated_transition.final_target_state = 'CLARIFICATION'}}",
+            "target_module": 15,
+            "description": "LLM determined more information needed. Send clarification question to tenant."
+          },
+          {
+            "id": "12c",
+            "name": "Job Assigned - Notify Contractor",
+            "condition": "{{validated_transition.final_target_state = 'ASSIGNED'}}",
+            "target_module": 16,
+            "description": "Job assigned to contractor/engineer. Send job details and accept/reject buttons."
+          },
+          {
+            "id": "12d",
+            "name": "Job Accepted - Notify Tenant",
+            "condition": "{{validated_transition.final_target_state = 'ACCEPTED'}}",
+            "target_module": 17,
+            "description": "Contractor accepted. Notify tenant with estimated arrival."
+          },
+          {
+            "id": "12e",
+            "name": "Work Started - Notify Tenant",
+            "condition": "{{validated_transition.final_target_state = 'IN_PROGRESS'}}",
+            "target_module": 18,
+            "description": "Work has started. Notify tenant."
+          },
+          {
+            "id": "12f",
+            "name": "Verification Required - Notify Tenant",
+            "condition": "{{validated_transition.final_target_state = 'VERIFICATION'}}",
+            "target_module": 19,
+            "description": "Contractor reports done. Ask tenant to verify completion."
+          },
+          {
+            "id": "12g",
+            "name": "Closed - Final Notifications + Invoice",
+            "condition": "{{validated_transition.final_target_state = 'CLOSED'}}",
+            "target_module": 20,
+            "description": "Work verified and closed. Send summary, trigger Xero invoice creation."
+          },
+          {
+            "id": "12h",
+            "name": "Cancelled - Notify Stakeholders",
+            "condition": "{{validated_transition.final_target_state = 'CANCELLED'}}",
+            "target_module": 21,
+            "description": "Work cancelled. Notify all relevant parties."
+          },
+          {
+            "id": "12i",
+            "name": "Escalated - Alert Management",
+            "condition": "{{validated_transition.final_target_state = 'ESCALATED'}}",
+            "target_module": 22,
+            "description": "SLA breach or manual escalation. Alert management chain."
+          },
+          {
+            "id": "12j",
+            "name": "On Hold - Notify Stakeholders",
+            "condition": "{{validated_transition.final_target_state = 'ON_HOLD'}}",
+            "target_module": 23,
+            "description": "Work placed on hold. Notify stakeholders with reason."
+          },
+          {
+            "id": "12k",
+            "name": "Payment Pending - Trigger Xero",
+            "condition": "{{validated_transition.final_target_state = 'PAYMENT_PENDING'}}",
+            "target_module": 24,
+            "description": "Work verified, payment needed. Create Xero invoice."
+          }
+        ]
+      }
+    },
+    {
+      "id": 13,
+      "name": "Send Rejection Message",
+      "type": "webhook_call",
+      "description": "Validation failed. Send a rejection message to the user explaining why their action could not be processed. Routes to Scenario C for outbound delivery.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{inbound_payload.person.id}}",
+            "phone": "{{inbound_payload.person.phone}}",
+            "name": "{{inbound_payload.person.name}}"
+          },
+          "message_type": "text",
+          "message": {
+            "text": "{{validated_transition.rejection_reason}}"
+          },
+          "work_item_id": "{{ifempty(inbound_payload.work_item.id, '')}}",
+          "notification_type": "COMMAND_REJECTED",
+          "source": "STATE_ENGINE"
+        }
+      },
+      "output": "rejection_sent"
+    },
+    {
+      "id": 14,
+      "name": "Side Effect - New Issue Created",
+      "type": "webhook_call",
+      "description": "New work item created with sufficient detail. Notify tenant of receipt with work item reference, and begin auto-assignment process based on site preferences and discipline.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{inbound_payload.person.id}}",
+            "phone": "{{inbound_payload.person.phone}}",
+            "name": "{{inbound_payload.person.name}}"
+          },
+          "message_type": "template",
+          "template": {
+            "name": "job_created_confirmation",
+            "language": "en_GB",
+            "components": [
+              {
+                "type": "body",
+                "parameters": [
+                  { "type": "text", "text": "{{inbound_payload.person.name}}" },
+                  { "type": "text", "text": "SF-{{persisted_work_item.fields.work_item_id}}" },
+                  { "type": "text", "text": "{{validated_transition.title}}" },
+                  { "type": "text", "text": "{{validated_transition.urgency}}" }
+                ]
+              }
+            ]
+          },
+          "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+          "notification_type": "JOB_CREATED",
+          "source": "STATE_ENGINE"
+        }
+      },
+      "output": "new_issue_notification"
+    },
+    {
+      "id": 15,
+      "name": "Side Effect - Clarification Request",
+      "type": "webhook_call",
+      "description": "Send clarification question to tenant. The question is generated by the LLM triage step.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{inbound_payload.person.id}}",
+            "phone": "{{inbound_payload.person.phone}}",
+            "name": "{{inbound_payload.person.name}}"
+          },
+          "message_type": "text",
+          "message": {
+            "text": "Thanks for getting in touch, {{inbound_payload.person.name}}. To help us get the right person out to you quickly, could you provide a bit more detail?\n\n{{triage_result.clarification_needed}}\n\nYour reference is SF-{{persisted_work_item.fields.work_item_id}}."
+          },
+          "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+          "notification_type": "CLARIFICATION_REQUEST",
+          "source": "STATE_ENGINE"
+        }
+      },
+      "output": "clarification_notification"
+    },
+    {
+      "id": 16,
+      "name": "Side Effect - Job Assigned",
+      "type": "webhook_call",
+      "description": "Notify assigned contractor/engineer with job details and accept/reject interactive buttons.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{ifempty(persisted_work_item.fields.assigned_engineer_id, persisted_work_item.fields.contractor_id)}}",
+            "phone": "",
+            "name": ""
+          },
+          "message_type": "interactive",
+          "interactive": {
+            "type": "button",
+            "body": {
+              "text": "New job assignment: SF-{{persisted_work_item.fields.work_item_id}}\n\n{{persisted_work_item.fields.title}}\nUrgency: {{persisted_work_item.fields.urgency}}\nSite: {{ifempty(site_lookup[0].fields.site_name, 'See details')}}\nAddress: {{ifempty(site_lookup[0].fields.address, 'See details')}}\n\n{{persisted_work_item.fields.description}}"
+            },
+            "action": {
+              "buttons": [
+                { "type": "reply", "reply": { "id": "ACCEPT", "title": "Accept Job" } },
+                { "type": "reply", "reply": { "id": "REJECT", "title": "Decline" } }
+              ]
+            }
+          },
+          "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+          "notification_type": "JOB_ASSIGNED",
+          "source": "STATE_ENGINE"
+        }
+      },
+      "output": "assigned_notification"
+    },
+    {
+      "id": 17,
+      "name": "Side Effect - Job Accepted",
+      "type": "webhook_call",
+      "description": "Notify tenant that a contractor has accepted their job.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{persisted_work_item.fields.reported_by}}",
+            "phone": "",
+            "name": ""
+          },
+          "message_type": "template",
+          "template": {
+            "name": "job_accepted_notification",
+            "language": "en_GB",
+            "components": [
+              {
+                "type": "body",
+                "parameters": [
+                  { "type": "text", "text": "SF-{{persisted_work_item.fields.work_item_id}}" },
+                  { "type": "text", "text": "{{persisted_work_item.fields.title}}" },
+                  { "type": "text", "text": "{{person_lookup[0].fields.first_name}}" }
+                ]
+              }
+            ]
+          },
+          "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+          "notification_type": "JOB_ACCEPTED",
+          "source": "STATE_ENGINE"
+        }
+      },
+      "output": "accepted_notification"
+    },
+    {
+      "id": 18,
+      "name": "Side Effect - Work Started",
+      "type": "webhook_call",
+      "description": "Notify tenant that work has started on their issue.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{persisted_work_item.fields.reported_by}}",
+            "phone": "",
+            "name": ""
+          },
+          "message_type": "text",
+          "message": {
+            "text": "Good news! Work has started on your request SF-{{persisted_work_item.fields.work_item_id}} ({{persisted_work_item.fields.title}}). We'll let you know once it's been completed."
+          },
+          "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+          "notification_type": "WORK_STARTED",
+          "source": "STATE_ENGINE"
+        }
+      },
+      "output": "started_notification"
+    },
+    {
+      "id": 19,
+      "name": "Side Effect - Verification Required",
+      "type": "webhook_call",
+      "description": "Contractor reports work complete. Ask tenant to verify/confirm completion with interactive buttons.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{persisted_work_item.fields.reported_by}}",
+            "phone": "",
+            "name": ""
+          },
+          "message_type": "interactive",
+          "interactive": {
+            "type": "button",
+            "body": {
+              "text": "The contractor has marked job SF-{{persisted_work_item.fields.work_item_id}} ({{persisted_work_item.fields.title}}) as complete.\n\nAre you happy with the work?"
+            },
+            "action": {
+              "buttons": [
+                { "type": "reply", "reply": { "id": "CONFIRM_COMPLETE", "title": "Looks good" } },
+                { "type": "reply", "reply": { "id": "REOPEN", "title": "Not resolved" } }
+              ]
+            }
+          },
+          "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+          "notification_type": "VERIFICATION_REQUEST",
+          "source": "STATE_ENGINE"
+        }
+      },
+      "output": "verification_notification"
+    },
+    {
+      "id": 20,
+      "name": "Side Effect - Closed + Invoice",
+      "type": "transformer",
+      "description": "Work verified and closed. Prepare final notification to tenant and trigger Xero invoice creation if contractor payment is required.",
+      "config": {
+        "mappings": {
+          "notification_payload": {
+            "recipient": {
+              "person_id": "{{persisted_work_item.fields.reported_by}}",
+              "phone": "",
+              "name": ""
+            },
+            "message_type": "text",
+            "message": {
+              "text": "Job SF-{{persisted_work_item.fields.work_item_id}} ({{persisted_work_item.fields.title}}) has been completed and closed. Thank you for using SafeFlow."
+            },
+            "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+            "notification_type": "JOB_CLOSED",
+            "source": "STATE_ENGINE"
+          },
+          "create_xero_invoice": "{{if(persisted_work_item.fields.contractor_id != '', true, false)}}",
+          "xero_invoice_payload": {
+            "contractor_id": "{{persisted_work_item.fields.contractor_id}}",
+            "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+            "title": "{{persisted_work_item.fields.title}}",
+            "quote_amount": "{{persisted_work_item.fields.quote_amount}}",
+            "site_id": "{{persisted_work_item.fields.site_id}}"
+          }
+        }
+      },
+      "output": "closed_actions",
+      "post_actions": [
+        {
+          "type": "webhook_call",
+          "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+          "method": "POST",
+          "headers": {
+            "Content-Type": "application/json",
+            "X-Source-Scenario": "scenario-b-state-engine"
+          },
+          "body": "{{closed_actions.notification_payload}}"
+        },
+        {
+          "type": "http_request",
+          "condition": "{{closed_actions.create_xero_invoice}}",
+          "url": "{{XERO_API_BASE_URL}}/api.xro/2.0/Invoices",
+          "method": "POST",
+          "headers": {
+            "Authorization": "Bearer {{XERO_ACCESS_TOKEN}}",
+            "Content-Type": "application/json",
+            "xero-tenant-id": "{{XERO_TENANT_ID}}"
+          },
+          "body": {
+            "Type": "ACCPAY",
+            "Contact": {
+              "ContactID": "{{lookup_xero_contact_for_contractor}}"
+            },
+            "LineItems": [
+              {
+                "Description": "SF-{{persisted_work_item.fields.work_item_id}}: {{persisted_work_item.fields.title}}",
+                "Quantity": 1,
+                "UnitAmount": "{{persisted_work_item.fields.quote_amount}}",
+                "AccountCode": "{{XERO_EXPENSE_ACCOUNT_CODE}}"
+              }
+            ],
+            "Reference": "SF-{{persisted_work_item.fields.work_item_id}}",
+            "DueDate": "{{formatDate(addDays(now, 30), 'YYYY-MM-DD')}}",
+            "CurrencyCode": "GBP"
+          }
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "Side Effect - Cancelled",
+      "type": "webhook_call",
+      "description": "Work order cancelled. Notify reporter, assignee (if any), and property manager.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{persisted_work_item.fields.reported_by}}",
+            "phone": "",
+            "name": ""
+          },
+          "message_type": "text",
+          "message": {
+            "text": "Job SF-{{persisted_work_item.fields.work_item_id}} ({{persisted_work_item.fields.title}}) has been cancelled. If you still need assistance, simply send us a new message describing the issue."
+          },
+          "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+          "notification_type": "JOB_CANCELLED",
+          "source": "STATE_ENGINE",
+          "additional_recipients": [
+            "{{ifempty(persisted_work_item.fields.assigned_engineer_id, '')}}",
+            "{{ifempty(persisted_work_item.fields.contractor_id, '')}}",
+            "{{ifempty(site_lookup[0].fields.property_manager_id, '')}}"
+          ]
+        }
+      },
+      "output": "cancelled_notification"
+    },
+    {
+      "id": 22,
+      "name": "Side Effect - Escalated",
+      "type": "webhook_call",
+      "description": "SLA breach or manual escalation. Alert management chain via Scenario C.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{ifempty(site_lookup[0].fields.property_manager_id, '')}}",
+            "phone": "",
+            "name": ""
+          },
+          "message_type": "template",
+          "template": {
+            "name": "escalation_alert",
+            "language": "en_GB",
+            "components": [
+              {
+                "type": "body",
+                "parameters": [
+                  { "type": "text", "text": "SF-{{persisted_work_item.fields.work_item_id}}" },
+                  { "type": "text", "text": "{{persisted_work_item.fields.title}}" },
+                  { "type": "text", "text": "{{persisted_work_item.fields.urgency}}" },
+                  { "type": "text", "text": "{{validated_transition.transition_reason}}" }
+                ]
+              }
+            ]
+          },
+          "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+          "notification_type": "ESCALATION_ALERT",
+          "source": "STATE_ENGINE",
+          "additional_recipients": [
+            "{{ifempty(site_lookup[0].fields.supervisor_id, '')}}"
+          ]
+        }
+      },
+      "output": "escalation_notification"
+    },
+    {
+      "id": 23,
+      "name": "Side Effect - On Hold",
+      "type": "webhook_call",
+      "description": "Work placed on hold. Notify tenant and property manager.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-b-state-engine",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{persisted_work_item.fields.reported_by}}",
+            "phone": "",
+            "name": ""
+          },
+          "message_type": "text",
+          "message": {
+            "text": "Job SF-{{persisted_work_item.fields.work_item_id}} ({{persisted_work_item.fields.title}}) has been temporarily placed on hold. {{if(inbound_payload.message.text, 'Reason: ' + inbound_payload.message.text, '')}} We will update you once work resumes."
+          },
+          "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+          "notification_type": "JOB_ON_HOLD",
+          "source": "STATE_ENGINE"
+        }
+      },
+      "output": "on_hold_notification"
+    },
+    {
+      "id": 24,
+      "name": "Side Effect - Payment Pending (Xero)",
+      "type": "http_request",
+      "description": "Create a purchase invoice in Xero for the contractor. Transition to PAYMENT_PENDING state occurs after verification.",
+      "config": {
+        "url": "{{XERO_API_BASE_URL}}/api.xro/2.0/Invoices",
+        "method": "POST",
+        "headers": {
+          "Authorization": "Bearer {{XERO_ACCESS_TOKEN}}",
+          "Content-Type": "application/json",
+          "xero-tenant-id": "{{XERO_TENANT_ID}}"
+        },
+        "body": {
+          "Type": "ACCPAY",
+          "Status": "DRAFT",
+          "Contact": {
+            "ContactID": "{{lookup_xero_contact_for_contractor}}"
+          },
+          "LineItems": [
+            {
+              "Description": "SF-{{persisted_work_item.fields.work_item_id}}: {{persisted_work_item.fields.title}}",
+              "Quantity": 1,
+              "UnitAmount": "{{persisted_work_item.fields.quote_amount}}",
+              "AccountCode": "{{XERO_EXPENSE_ACCOUNT_CODE}}",
+              "TaxType": "OUTPUT2"
+            }
+          ],
+          "Reference": "SF-{{persisted_work_item.fields.work_item_id}}",
+          "DueDate": "{{formatDate(addDays(now, 30), 'YYYY-MM-DD')}}",
+          "CurrencyCode": "GBP"
+        },
+        "timeout_ms": 15000
+      },
+      "output": "xero_invoice",
+      "post_actions": [
+        {
+          "type": "airtable_update",
+          "description": "Store Xero invoice ID on the work item",
+          "base_id": "{{AIRTABLE_BASE_ID}}",
+          "table": "Work_Items",
+          "record_id": "{{persisted_work_item.id}}",
+          "fields": {
+            "invoice_id": "{{xero_invoice.Invoices[0].InvoiceID}}",
+            "invoice_number": "{{xero_invoice.Invoices[0].InvoiceNumber}}"
+          }
+        }
+      ],
+      "error_handler": {
+        "type": "route",
+        "target_module": 99,
+        "note": "Xero invoice creation failure is HIGH severity - requires manual follow-up"
+      }
+    },
+    {
+      "id": 99,
+      "name": "Global Error Handler",
+      "type": "error_handler",
+      "description": "Catch any unhandled errors. Release state lock if held, then route to Scenario E (DLQ) for investigation and replay.",
+      "config": {
+        "actions": [
+          {
+            "type": "airtable_update",
+            "description": "Release state lock to unblock future processing",
+            "condition": "{{if(inbound_payload.work_item.exists AND inbound_payload.work_item.id != '', true, false)}}",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "Work_Items",
+            "record_id": "{{inbound_payload.work_item.id}}",
+            "fields": {
+              "state_locked": false,
+              "state_locked_by": "",
+              "state_locked_at": ""
+            }
+          },
+          {
+            "type": "webhook_call",
+            "url": "{{MAKE_WEBHOOK_URL_SCENARIO_E}}",
+            "method": "POST",
+            "body": {
+              "scenario": "SCENARIO_B_STATE_ENGINE",
+              "error_type": "{{error.type}}",
+              "error_message": "{{error.message}}",
+              "module_id": "{{error.module_id}}",
+              "module_name": "{{error.module_name}}",
+              "severity": "{{if(error.type = 'RuntimeError', 'CRITICAL', if(error.type = 'ConnectionError', 'HIGH', 'MEDIUM'))}}",
+              "payload": "{{toString(inbound_payload)}}",
+              "execution_id": "{{executionId}}",
+              "timestamp": "{{now}}",
+              "retry_eligible": true,
+              "context": {
+                "work_item_id": "{{ifempty(inbound_payload.work_item.id, '')}}",
+                "current_state": "{{ifempty(inbound_payload.work_item.current_state, '')}}",
+                "proposed_state": "{{ifempty(validated_transition.final_target_state, '')}}",
+                "person_role": "{{ifempty(inbound_payload.person.role, '')}}"
+              }
+            }
+          },
+          {
+            "type": "webhook_response",
+            "status_code": 200,
+            "body": {
+              "status": "error_logged",
+              "retry_eligible": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "connections": [
+    { "from": 1, "to": 2 },
+    { "from": 2, "to": 3 },
+    { "from": 3, "to": 4 },
+    { "from": 4, "to": [5, 6] },
+    { "from": 5, "to": 7 },
+    { "from": 6, "to": 7 },
+    { "from": 7, "to": 8 },
+    { "from": 8, "to": [9, 13] },
+    { "from": 9, "to": 10 },
+    { "from": 10, "to": 11 },
+    { "from": 11, "to": 12 },
+    { "from": 12, "to": [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] }
+  ],
+  "env_vars": [
+    "MAKE_WEBHOOK_URL_SCENARIO_B",
+    "MAKE_WEBHOOK_URL_SCENARIO_C",
+    "MAKE_WEBHOOK_URL_SCENARIO_E",
+    "AIRTABLE_BASE_ID",
+    "AIRTABLE_API_KEY",
+    "ANTHROPIC_API_KEY",
+    "LLM_MODEL_ID",
+    "XERO_API_BASE_URL",
+    "XERO_ACCESS_TOKEN",
+    "XERO_TENANT_ID",
+    "XERO_EXPENSE_ACCOUNT_CODE"
+  ],
+  "operations_estimate": {
+    "per_message": 12,
+    "daily_average": 600,
+    "monthly_estimate": 18000,
+    "notes": "Higher operation count than Scenario A due to LLM call, validation, state persistence, and side effect routing. LLM calls are the most expensive operation both in time and cost."
+  }
+}

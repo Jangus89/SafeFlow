@@ -1,0 +1,235 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblSites",
+  "name": "Sites",
+  "description": "UK commercial properties managed through the SafeFlow FM platform. Each site represents a building or property complex with its own WhatsApp number for tenant communications.",
+  "record_count_estimate": "Low volume - typically tens to low hundreds of site records",
+  "primary_field": "site_name",
+  "fields": [
+    {
+      "field_id": "fldSitAutoId",
+      "name": "site_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each site"
+    },
+    {
+      "field_id": "fldSitName",
+      "name": "site_name",
+      "type": "singleLineText",
+      "description": "Display name for the property or building"
+    },
+    {
+      "field_id": "fldSitAddr1",
+      "name": "address_line_1",
+      "type": "singleLineText",
+      "description": "Primary address line (street number and name)"
+    },
+    {
+      "field_id": "fldSitAddr2",
+      "name": "address_line_2",
+      "type": "singleLineText",
+      "description": "Secondary address line (building name, suite, etc.)"
+    },
+    {
+      "field_id": "fldSitCity",
+      "name": "city",
+      "type": "singleLineText",
+      "description": "City or town"
+    },
+    {
+      "field_id": "fldSitCounty",
+      "name": "county",
+      "type": "singleLineText",
+      "description": "County or administrative region"
+    },
+    {
+      "field_id": "fldSitPostcode",
+      "name": "postcode",
+      "type": "singleLineText",
+      "description": "UK postcode format (e.g. SW1A 1AA, EC2R 8AH)"
+    },
+    {
+      "field_id": "fldSitCountry",
+      "name": "country",
+      "type": "singleLineText",
+      "description": "Country, defaults to United Kingdom",
+      "options": {
+        "defaultValue": "United Kingdom"
+      }
+    },
+    {
+      "field_id": "fldSitWhatsApp",
+      "name": "whatsapp_number",
+      "type": "phoneNumber",
+      "description": "WhatsApp Business number for this site in +44 format (e.g. +44 20 7946 0958)"
+    },
+    {
+      "field_id": "fldSitType",
+      "name": "site_type",
+      "type": "singleSelect",
+      "description": "Category of commercial property",
+      "options": {
+        "choices": [
+          { "name": "OFFICE", "color": "blueLight2" },
+          { "name": "RETAIL", "color": "greenLight2" },
+          { "name": "WAREHOUSE", "color": "yellowLight2" },
+          { "name": "MIXED_USE", "color": "purpleLight2" },
+          { "name": "RESIDENTIAL_BLOCK", "color": "cyanLight2" },
+          { "name": "INDUSTRIAL", "color": "orangeLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldSitSubscription",
+      "name": "subscription_tier",
+      "type": "singleSelect",
+      "description": "Service level subscription tier determining SLA thresholds and feature access",
+      "options": {
+        "choices": [
+          { "name": "BASIC", "color": "grayLight2" },
+          { "name": "STANDARD", "color": "blueLight2" },
+          { "name": "PREMIUM", "color": "yellowLight2" },
+          { "name": "ENTERPRISE", "color": "purpleLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldSitPrimaryContact",
+      "name": "primary_contact",
+      "type": "multipleRecordLinks",
+      "description": "Main point of contact for this site",
+      "options": {
+        "linkedTableId": "tblPeople",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldSitPropertyManager",
+      "name": "property_manager",
+      "type": "multipleRecordLinks",
+      "description": "Property manager responsible for this site",
+      "options": {
+        "linkedTableId": "tblPeople",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldSitWorkItems",
+      "name": "work_items",
+      "type": "multipleRecordLinks",
+      "description": "All work items associated with this site",
+      "options": {
+        "linkedTableId": "tblWorkItems",
+        "inverseLinkFieldId": "fldWISiteId"
+      }
+    },
+    {
+      "field_id": "fldSitOperatingHours",
+      "name": "operating_hours",
+      "type": "singleLineText",
+      "description": "Standard operating hours for the site (e.g. Mon-Fri 08:00-18:00)"
+    },
+    {
+      "field_id": "fldSitEmergencyContact",
+      "name": "emergency_contact_number",
+      "type": "phoneNumber",
+      "description": "Emergency out-of-hours contact number in +44 format"
+    },
+    {
+      "field_id": "fldSitAccessInstructions",
+      "name": "access_instructions",
+      "type": "multilineText",
+      "description": "Instructions for accessing the site, including key codes, security procedures, and parking information"
+    },
+    {
+      "field_id": "fldSitIsActive",
+      "name": "is_active",
+      "type": "checkbox",
+      "description": "Whether the site is currently active and accepting work items",
+      "options": {
+        "icon": "check",
+        "color": "greenBright",
+        "defaultValue": true
+      }
+    },
+    {
+      "field_id": "fldSitCreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "Timestamp when the site record was created",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldSitTotalOpen",
+      "name": "total_open_items",
+      "type": "rollup",
+      "description": "Count of all linked work items that are not in CLOSED or CANCELLED state",
+      "options": {
+        "linkedRecordFieldId": "fldSitWorkItems",
+        "linkedRecordFieldIdInLinkedTable": "fldWIAutoId",
+        "formula": "COUNTA(values)"
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "All Sites",
+      "type": "grid",
+      "description": "Complete list of all sites",
+      "fields": "all",
+      "sort": [
+        { "field": "site_name", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Active Sites",
+      "type": "grid",
+      "description": "Only sites currently accepting work items",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "is_active", "operator": "isEqual", "value": true }
+        ]
+      },
+      "sort": [
+        { "field": "site_name", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "By Subscription Tier",
+      "type": "grid",
+      "description": "Sites grouped by their subscription tier",
+      "group": [
+        { "field": "subscription_tier", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "site_name", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "By Property Manager",
+      "type": "grid",
+      "description": "Sites grouped by assigned property manager",
+      "group": [
+        { "field": "property_manager", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "site_name", "direction": "asc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": ["People"],
+    "has_many": ["Work_Items"]
+  },
+  "field_count": 20,
+  "formula_count": 0,
+  "rollup_count": 1,
+  "link_count": 3
+}

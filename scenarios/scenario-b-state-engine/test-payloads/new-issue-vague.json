@@ -1,0 +1,47 @@
+{
+  "description": "Enriched payload from Scenario A containing a vague maintenance request with insufficient detail. Tenant sends a brief message without specifying location, urgency, or the exact nature of the problem. Should trigger CLARIFICATION state.",
+  "payload": {
+    "message": {
+      "id": "wamid.HBgLNDQ3NzAwOTAwMTIzFQIAERgSMkYxRjA2QTUyODdGNkI0MkEC",
+      "text": "Something is broken can you send someone",
+      "type": "text",
+      "media_id": "",
+      "timestamp": "1739524200"
+    },
+    "person": {
+      "id": "recABC123DEF789",
+      "phone": "447700900456",
+      "name": "James Cooper",
+      "role": "TENANT",
+      "site_id": "recSITE002"
+    },
+    "command": {
+      "is_command": false,
+      "command": "",
+      "job_id": ""
+    },
+    "work_item": {
+      "exists": false,
+      "id": "",
+      "current_state": ""
+    },
+    "interaction_log_id": "recLOG002ABC",
+    "source_execution_id": "exec_a_20260215_002"
+  },
+  "expected_behaviour": {
+    "intent_route": "4b - New Issue (no existing work item)",
+    "should_call_llm": true,
+    "llm_expected_result": {
+      "intent": "NEW_ISSUE",
+      "has_sufficient_detail": false,
+      "clarification_needed": "Could you let us know: 1) What exactly is broken? 2) Where in the building is the issue (floor, room, or area)? 3) Is there any immediate risk such as water damage, electrical hazard, or safety concern?",
+      "urgency": "STANDARD",
+      "discipline": "GENERAL_MAINTENANCE",
+      "recommended_state": "CLARIFICATION"
+    },
+    "should_create_work_item": true,
+    "expected_state": "CLARIFICATION",
+    "should_send_clarification": true,
+    "should_handoff_to_scenario_c": true
+  }
+}

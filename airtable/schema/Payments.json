@@ -1,0 +1,243 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblPayments",
+  "name": "Payments",
+  "description": "Payment records tracking the financial lifecycle from quote acceptance through invoice creation in Xero to final payment. Supports approval workflows, VAT calculations, and overdue payment monitoring.",
+  "record_count_estimate": "Medium volume - one payment record per accepted quote",
+  "primary_field": "payment_id",
+  "fields": [
+    {
+      "field_id": "fldPayAutoId",
+      "name": "payment_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each payment record"
+    },
+    {
+      "field_id": "fldPayWorkItem",
+      "name": "work_item_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the work item this payment relates to",
+      "options": {
+        "linkedTableId": "tblWorkItems",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldPayQuote",
+      "name": "quote_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the accepted quote that this payment is based on",
+      "options": {
+        "linkedTableId": "tblQuotes",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldPayContractor",
+      "name": "contractor_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the contractor being paid",
+      "options": {
+        "linkedTableId": "tblContractors",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldPayAmount",
+      "name": "amount",
+      "type": "currency",
+      "description": "Payment amount excluding VAT",
+      "options": {
+        "symbol": "\u00a3",
+        "precision": 2
+      }
+    },
+    {
+      "field_id": "fldPayVat",
+      "name": "vat_amount",
+      "type": "currency",
+      "description": "VAT amount at 20%",
+      "options": {
+        "symbol": "\u00a3",
+        "precision": 2
+      }
+    },
+    {
+      "field_id": "fldPayTotalAmount",
+      "name": "total_amount",
+      "type": "formula",
+      "description": "Total payment amount including VAT",
+      "options": {
+        "formula": "{amount} + {vat_amount}",
+        "resultType": "currency",
+        "resultFormat": {
+          "symbol": "\u00a3",
+          "precision": 2
+        }
+      }
+    },
+    {
+      "field_id": "fldPayStatus",
+      "name": "status",
+      "type": "singleSelect",
+      "description": "Current status of the payment in the approval and invoicing workflow",
+      "options": {
+        "choices": [
+          { "name": "PENDING", "color": "yellowLight2" },
+          { "name": "APPROVED", "color": "blueLight2" },
+          { "name": "INVOICE_CREATED", "color": "cyanLight2" },
+          { "name": "PAID", "color": "greenBright" },
+          { "name": "DISPUTED", "color": "redBright" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldPayXeroInvoiceId",
+      "name": "xero_invoice_id",
+      "type": "singleLineText",
+      "description": "Xero accounting system invoice identifier for synchronisation"
+    },
+    {
+      "field_id": "fldPayXeroInvoiceNum",
+      "name": "xero_invoice_number",
+      "type": "singleLineText",
+      "description": "Human-readable Xero invoice number (e.g. INV-0001)"
+    },
+    {
+      "field_id": "fldPayInvoiceDate",
+      "name": "invoice_date",
+      "type": "date",
+      "description": "Date the invoice was raised",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" }
+      }
+    },
+    {
+      "field_id": "fldPayDueDate",
+      "name": "due_date",
+      "type": "date",
+      "description": "Date by which payment is due, calculated from contractor payment terms",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" }
+      }
+    },
+    {
+      "field_id": "fldPayPaidDate",
+      "name": "paid_date",
+      "type": "date",
+      "description": "Date the payment was actually made",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" }
+      }
+    },
+    {
+      "field_id": "fldPayMethod",
+      "name": "payment_method",
+      "type": "singleSelect",
+      "description": "Method used to make the payment",
+      "options": {
+        "choices": [
+          { "name": "BANK_TRANSFER", "color": "blueLight2" },
+          { "name": "DIRECT_DEBIT", "color": "greenLight2" },
+          { "name": "CREDIT_CARD", "color": "purpleLight2" },
+          { "name": "CHEQUE", "color": "yellowLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldPayCreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "Timestamp when the payment record was created",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldPayApprovedBy",
+      "name": "approved_by",
+      "type": "multipleRecordLinks",
+      "description": "Link to the person (typically property manager or admin) who approved this payment",
+      "options": {
+        "linkedTableId": "tblPeople",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldPayNotes",
+      "name": "notes",
+      "type": "multilineText",
+      "description": "Additional notes including dispute reasons, adjustment details, or payment references"
+    },
+    {
+      "field_id": "fldPayIsOverdue",
+      "name": "is_overdue",
+      "type": "formula",
+      "description": "Boolean flag indicating whether the payment has passed its due date without being paid",
+      "options": {
+        "formula": "IF(AND({due_date}, NOW() > {due_date}, {status} != 'PAID'), TRUE(), FALSE())",
+        "resultType": "boolean"
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "All Payments",
+      "type": "grid",
+      "description": "Complete list of all payment records",
+      "fields": "all",
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Pending Approval",
+      "type": "grid",
+      "description": "Payments awaiting approval before invoice creation",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "status", "operator": "isEqual", "value": "PENDING" }
+        ]
+      },
+      "sort": [
+        { "field": "created_at", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Overdue",
+      "type": "grid",
+      "description": "Invoiced payments that have passed their due date without being settled",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "is_overdue", "operator": "isEqual", "value": true }
+        ]
+      },
+      "sort": [
+        { "field": "due_date", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "By Contractor",
+      "type": "grid",
+      "description": "All payments grouped by contractor for reconciliation and reporting",
+      "group": [
+        { "field": "contractor_id", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": ["Work_Items", "Quotes", "Contractors", "People"]
+  },
+  "field_count": 18,
+  "formula_count": 2,
+  "link_count": 4
+}

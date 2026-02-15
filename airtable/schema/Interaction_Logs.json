@@ -1,0 +1,219 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblInteractionLogs",
+  "name": "Interaction_Logs",
+  "description": "Comprehensive log of all communications across WhatsApp, email, SMS, phone, and system-generated messages. Each record captures message content, delivery status, LLM processing results, and links back to the relevant work item and person.",
+  "record_count_estimate": "High volume - multiple interactions per work item, expect thousands per month",
+  "primary_field": "interaction_id",
+  "fields": [
+    {
+      "field_id": "fldIntAutoId",
+      "name": "interaction_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each interaction"
+    },
+    {
+      "field_id": "fldIntWorkItem",
+      "name": "work_item_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the work item this interaction relates to, if applicable",
+      "options": {
+        "linkedTableId": "tblWorkItems",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldIntPerson",
+      "name": "person_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the person who sent or received this message",
+      "options": {
+        "linkedTableId": "tblPeople",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldIntDirection",
+      "name": "direction",
+      "type": "singleSelect",
+      "description": "Whether the message was received from or sent to the external party",
+      "options": {
+        "choices": [
+          { "name": "INBOUND", "color": "blueLight2" },
+          { "name": "OUTBOUND", "color": "greenLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldIntChannel",
+      "name": "channel",
+      "type": "singleSelect",
+      "description": "Communication channel used for this interaction",
+      "options": {
+        "choices": [
+          { "name": "WHATSAPP", "color": "greenBright" },
+          { "name": "EMAIL", "color": "blueLight2" },
+          { "name": "SMS", "color": "cyanLight2" },
+          { "name": "PHONE", "color": "purpleLight2" },
+          { "name": "SYSTEM", "color": "grayLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldIntMessageType",
+      "name": "message_type",
+      "type": "singleSelect",
+      "description": "Type of message content, determining how it is processed and displayed",
+      "options": {
+        "choices": [
+          { "name": "TEXT", "color": "blueLight2" },
+          { "name": "IMAGE", "color": "greenLight2" },
+          { "name": "DOCUMENT", "color": "yellowLight2" },
+          { "name": "AUDIO", "color": "purpleLight2" },
+          { "name": "VIDEO", "color": "cyanLight2" },
+          { "name": "TEMPLATE", "color": "orangeLight2" },
+          { "name": "INTERACTIVE", "color": "pinkLight2" },
+          { "name": "SYSTEM_NOTE", "color": "grayLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldIntContent",
+      "name": "message_content",
+      "type": "multilineText",
+      "description": "Full text content of the message, or description for non-text message types"
+    },
+    {
+      "field_id": "fldIntWhatsAppMsgId",
+      "name": "whatsapp_message_id",
+      "type": "singleLineText",
+      "description": "WhatsApp Cloud API message identifier for delivery tracking and deduplication"
+    },
+    {
+      "field_id": "fldIntTemplateName",
+      "name": "template_name",
+      "type": "singleLineText",
+      "description": "Name of the WhatsApp message template used for outbound template messages"
+    },
+    {
+      "field_id": "fldIntMediaUrl",
+      "name": "media_url",
+      "type": "url",
+      "description": "URL to the media file (image, document, audio, video) associated with this message"
+    },
+    {
+      "field_id": "fldIntLLMProcessed",
+      "name": "llm_processed",
+      "type": "checkbox",
+      "description": "Whether this interaction has been processed by the LLM for intent extraction and data parsing",
+      "options": {
+        "icon": "check",
+        "color": "purpleBright"
+      }
+    },
+    {
+      "field_id": "fldIntLLMIntent",
+      "name": "llm_intent",
+      "type": "singleLineText",
+      "description": "Intent classification extracted by the LLM (e.g. REPORT_ISSUE, PROVIDE_INFO, CONFIRM, ESCALATE)"
+    },
+    {
+      "field_id": "fldIntLLMConfidence",
+      "name": "llm_confidence",
+      "type": "number",
+      "description": "Confidence score (0.00 to 1.00) from the LLM intent classification",
+      "options": {
+        "precision": 2
+      }
+    },
+    {
+      "field_id": "fldIntDeliveryStatus",
+      "name": "delivery_status",
+      "type": "singleSelect",
+      "description": "Delivery status of outbound messages, updated via webhook callbacks",
+      "options": {
+        "choices": [
+          { "name": "SENT", "color": "yellowLight2" },
+          { "name": "DELIVERED", "color": "blueLight2" },
+          { "name": "READ", "color": "greenBright" },
+          { "name": "FAILED", "color": "redBright" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldIntErrorMessage",
+      "name": "error_message",
+      "type": "singleLineText",
+      "description": "Error message if delivery failed, including WhatsApp Cloud API error codes"
+    },
+    {
+      "field_id": "fldIntCreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "Timestamp when the interaction was logged",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldIntScenarioExecId",
+      "name": "scenario_execution_id",
+      "type": "singleLineText",
+      "description": "Make.com scenario execution identifier linking this interaction to the automation run that processed it"
+    }
+  ],
+  "views": [
+    {
+      "name": "All Interactions",
+      "type": "grid",
+      "description": "Complete log of all interactions across all channels",
+      "fields": "all",
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "By Work Item",
+      "type": "grid",
+      "description": "Interactions grouped by work item to view the full conversation history for each job",
+      "group": [
+        { "field": "work_item_id", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "created_at", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Failed Messages",
+      "type": "grid",
+      "description": "Outbound messages that failed to deliver, requiring investigation or retry",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "delivery_status", "operator": "isEqual", "value": "FAILED" }
+        ]
+      },
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Recent",
+      "type": "grid",
+      "description": "Most recent interactions across all channels, sorted by creation time",
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": ["Work_Items", "People"]
+  },
+  "field_count": 17,
+  "formula_count": 0,
+  "link_count": 2
+}

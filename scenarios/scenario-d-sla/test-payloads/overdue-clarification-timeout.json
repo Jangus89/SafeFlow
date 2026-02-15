@@ -1,0 +1,55 @@
+{
+  "description": "Work item stuck in CLARIFICATION state for over 48 hours with no response from the reporter. Should trigger auto-cancellation via Scenario B and send a notification to the reporter explaining the cancellation.",
+  "airtable_record": {
+    "id": "recWI001043",
+    "fields": {
+      "work_item_id": 1043,
+      "title": "Unknown issue - awaiting clarification",
+      "current_state": "CLARIFICATION",
+      "urgency": "STANDARD",
+      "sla_due_at": "2026-02-14T14:00:00.000Z",
+      "sla_response_due_at": "2026-02-13T18:00:00.000Z",
+      "escalation_level": 1,
+      "assigned_engineer_id": "",
+      "contractor_id": "",
+      "reported_by": "recABC123DEF789",
+      "site_id": "recSITE002",
+      "discipline_required": "GENERAL_MAINTENANCE",
+      "state_started_at": "2026-02-13T10:00:00.000Z",
+      "time_in_current_state": 2940,
+      "is_overdue": true,
+      "state_locked": false,
+      "priority_score": 30,
+      "created_at": "2026-02-13T10:00:00.000Z",
+      "updated_at": "2026-02-13T14:00:00.000Z",
+      "state_history": "2026-02-13 10:00:00 | NEW -> CLARIFICATION | New issue requires clarification | by James Cooper (TENANT)",
+      "blocked_reason": ""
+    }
+  },
+  "trigger_context": {
+    "trigger_time": "2026-02-15T11:00:00.000Z",
+    "note": "Scheduled run at 11:00 on Feb 15. Item entered CLARIFICATION at 10:00 on Feb 13. That is 49 hours ago, exceeding the 48-hour auto-cancel threshold."
+  },
+  "expected_behaviour": {
+    "should_pass_filter": true,
+    "overdue_metrics": {
+      "minutes_overdue": 1260,
+      "minutes_in_state": 2940,
+      "required_escalation_level": 3,
+      "current_escalation_level": 1,
+      "needs_escalation_increment": true
+    },
+    "nudge_route": "7a - CLARIFICATION Overdue",
+    "action": "AUTO_CANCEL",
+    "should_update_escalation_level": true,
+    "state_transition_route": "23b - Auto-Cancel (Clarification Timeout)",
+    "should_transition_via_scenario_b": true,
+    "transition_command": "CANCEL",
+    "transition_person_role": "SYSTEM",
+    "transition_reason": "Auto-cancelled: no response to clarification request for 48+ hours",
+    "should_notify_via_scenario_c": true,
+    "notification_type": "AUTO_CANCEL_NOTICE",
+    "notification_recipients": ["recABC123DEF789"],
+    "should_log_escalation": true
+  }
+}

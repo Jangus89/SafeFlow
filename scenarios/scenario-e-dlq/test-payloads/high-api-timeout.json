@@ -1,0 +1,29 @@
+{
+  "description": "High severity - Claude API timeout during LLM triage",
+  "payload": {
+    "scenario": "SCENARIO_B_STATE_ENGINE",
+    "severity": "HIGH",
+    "error_type": "API_TIMEOUT",
+    "error_message": "Claude API request timed out after 30000ms",
+    "module_id": 5,
+    "module_name": "LLM Triage - Claude API",
+    "stack_trace": "POST https://api.anthropic.com/v1/messages\nTimeout: 30000ms\nNo response received.",
+    "original_payload": {
+      "work_item_id": "rec_xyz789",
+      "message_text": "Water leak in the car park",
+      "person_id": "rec_person123"
+    },
+    "retry_count": 0,
+    "max_retries": 3,
+    "execution_id": "exec_def456",
+    "timestamp": "2026-02-15T11:15:00Z"
+  },
+  "expected_behaviour": {
+    "severity_classification": "HIGH",
+    "should_create_error_record": true,
+    "should_alert_slack": true,
+    "should_attempt_retry": true,
+    "retry_delay_seconds": 30,
+    "retry_target_scenario": "SCENARIO_B_STATE_ENGINE"
+  }
+}

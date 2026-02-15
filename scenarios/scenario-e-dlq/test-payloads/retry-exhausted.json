@@ -1,0 +1,34 @@
+{
+  "description": "Error that has exhausted all retry attempts",
+  "payload": {
+    "scenario": "SCENARIO_C_OUTBOUND",
+    "severity": "HIGH",
+    "error_type": "RETRY_EXHAUSTED",
+    "error_message": "360dialog API returned 500 Internal Server Error. All 3 retry attempts exhausted.",
+    "module_id": 5,
+    "module_name": "Send Template Message",
+    "stack_trace": "POST https://waba.360dialog.io/v1/messages\nAttempt 1 (T+0s): HTTP 500\nAttempt 2 (T+30s): HTTP 500\nAttempt 3 (T+120s): HTTP 500\nAll retries exhausted.",
+    "original_payload": {
+      "recipient_phone": "+447700900500",
+      "template_name": "job_created",
+      "template_params": {
+        "job_ref": "SF-1042",
+        "discipline": "PLUMBING",
+        "sla_time": "72 hours"
+      },
+      "work_item_id": "rec_mno345"
+    },
+    "retry_count": 3,
+    "max_retries": 3,
+    "execution_id": "exec_pqr678",
+    "timestamp": "2026-02-15T16:45:00Z"
+  },
+  "expected_behaviour": {
+    "severity_classification": "HIGH",
+    "should_create_error_record": true,
+    "should_alert_slack": true,
+    "should_alert_email": true,
+    "should_attempt_retry": false,
+    "note": "Retries exhausted - requires manual intervention. Tenant has not received confirmation of their report."
+  }
+}

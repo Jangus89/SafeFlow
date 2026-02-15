@@ -1,0 +1,28 @@
+{
+  "description": "Critical error - complete Make.com scenario execution failure",
+  "payload": {
+    "scenario": "SCENARIO_A_INBOUND",
+    "severity": "CRITICAL",
+    "error_type": "SCENARIO_EXECUTION_FAILURE",
+    "error_message": "Scenario execution failed at module 6 (Lookup Person): Airtable API returned 503 Service Unavailable",
+    "module_id": 6,
+    "module_name": "Lookup Person",
+    "stack_trace": "Module 6: HTTP 503 from https://api.airtable.com/v0/appXXX/People\nRetry 1: 503\nRetry 2: 503\nRetry 3: 503\nMax retries exceeded.",
+    "original_payload": {
+      "from": "447700900500",
+      "message_id": "wamid.test123",
+      "message_text": "The boiler has broken down again"
+    },
+    "execution_id": "exec_abc123",
+    "timestamp": "2026-02-15T10:30:00Z"
+  },
+  "expected_behaviour": {
+    "severity_classification": "CRITICAL",
+    "should_create_error_record": true,
+    "should_alert_slack": true,
+    "should_alert_email": true,
+    "should_alert_pagerduty": true,
+    "should_attempt_retry": false,
+    "note": "Airtable outage - retries already exhausted in source scenario"
+  }
+}

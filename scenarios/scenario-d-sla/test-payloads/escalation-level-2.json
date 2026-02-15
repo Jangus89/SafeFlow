@@ -1,0 +1,57 @@
+{
+  "description": "Urgent-priority work item in IN_PROGRESS state that has breached the second escalation interval (2 hours overdue). Currently at escalation level 1, should escalate to level 2 with notifications to supervisor and property manager, and transition to ESCALATED state.",
+  "airtable_record": {
+    "id": "recWI001048",
+    "fields": {
+      "work_item_id": 1048,
+      "title": "Complete heating failure - all floors, Victoria House",
+      "current_state": "IN_PROGRESS",
+      "urgency": "URGENT",
+      "sla_due_at": "2026-02-15T08:00:00.000Z",
+      "sla_response_due_at": "2026-02-14T09:00:00.000Z",
+      "escalation_level": 1,
+      "assigned_engineer_id": "recENG003ABC",
+      "contractor_id": "recCON002ABC",
+      "reported_by": "recTEN002ABC",
+      "site_id": "recSITE003",
+      "discipline_required": "HVAC",
+      "state_started_at": "2026-02-14T10:00:00.000Z",
+      "time_in_current_state": 1500,
+      "is_overdue": true,
+      "state_locked": false,
+      "priority_score": 85,
+      "created_at": "2026-02-14T08:00:00.000Z",
+      "updated_at": "2026-02-14T12:00:00.000Z",
+      "state_history": "2026-02-14 08:00:00 | NEW -> ASSESSMENT | New issue triaged by LLM: Complete heating failure | by Helen Clarke (TENANT)\n2026-02-14 08:05:00 | ASSESSMENT -> ASSIGNED | Assigned to HVAC contractor | by System (SYSTEM)\n2026-02-14 08:30:00 | ASSIGNED -> ACCEPTED | Assignee accepted the job | by Mike Jones (CONTRACTOR)\n2026-02-14 10:00:00 | ACCEPTED -> IN_PROGRESS | Assignee started work on site | by Mike Jones (CONTRACTOR)",
+      "blocked_reason": ""
+    }
+  },
+  "trigger_context": {
+    "trigger_time": "2026-02-15T11:00:00.000Z",
+    "note": "Scheduled run at 11:00 on Feb 15. SLA due at 08:00, now 3 hours overdue. URGENT second escalation threshold is 120 minutes (2 hours). Currently at level 1, should escalate to level 2."
+  },
+  "expected_behaviour": {
+    "should_pass_filter": true,
+    "overdue_metrics": {
+      "minutes_overdue": 180,
+      "minutes_in_state": 1500,
+      "required_escalation_level": 2,
+      "current_escalation_level": 1,
+      "needs_escalation_increment": true
+    },
+    "nudge_route": "7d - IN_PROGRESS Overdue",
+    "action": "CHECK_IN_ASSIGNEE",
+    "escalation_level_route": "17b - Level 1 to 2",
+    "should_update_escalation_level": true,
+    "new_escalation_level": 2,
+    "state_transition_route": "23a - Transition to ESCALATED",
+    "should_transition_via_scenario_b": true,
+    "transition_command": "ESCALATE",
+    "transition_person_role": "SYSTEM",
+    "should_notify_via_scenario_c": true,
+    "notification_type": "IN_PROGRESS_OVERDUE",
+    "notification_recipients": ["recENG003ABC", "recCON002ABC"],
+    "escalation_notification_recipients": ["recENG003ABC", "recCON002ABC", "supervisor_for_recSITE003", "property_manager_for_recSITE003"],
+    "should_log_escalation": true
+  }
+}

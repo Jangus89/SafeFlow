@@ -1,0 +1,50 @@
+{
+  "description": "Edge case: outbound request that simulates a 360dialog rate-limited response (HTTP 429). The request itself is valid, but the test documents the expected behaviour when the 360dialog API returns a rate limit error. Should trigger retry with exponential backoff and be logged to Scenario E at LOW severity.",
+  "payload": {
+    "recipient": {
+      "person_id": "recABC123DEF456",
+      "phone": "447700900123",
+      "name": "Sarah Mitchell"
+    },
+    "message_type": "text",
+    "message": {
+      "text": "Job SF-1044 (Broken cold water tap - ground floor kitchen, Meridian House) has been cancelled. If you still need assistance, simply send us a new message describing the issue."
+    },
+    "work_item_id": "1044",
+    "notification_type": "JOB_CANCELLED",
+    "source": "STATE_ENGINE"
+  },
+  "simulated_api_response": {
+    "status_code": 429,
+    "body": {
+      "errors": [
+        {
+          "code": 130429,
+          "title": "Rate limit hit",
+          "message": "Too many API requests. Please retry after 60 seconds.",
+          "details": "Cloud API rate limit reached"
+        }
+      ]
+    }
+  },
+  "expected_behaviour": {
+    "should_resolve_recipient": false,
+    "should_pass_dedupe": true,
+    "message_route": "8b - Text Message",
+    "should_fail_send": true,
+    "error_handler_module": 13,
+    "error_classification": {
+      "is_rate_limited": true,
+      "severity": "LOW",
+      "retry_eligible": true,
+      "retry_delay_seconds": 60
+    },
+    "should_log_to_scenario_e": true,
+    "should_create_interaction_log_with_failed_status": true,
+    "retry_config": {
+      "attempts": 3,
+      "initial_delay_ms": 2000,
+      "backoff_multiplier": 2
+    }
+  }
+}

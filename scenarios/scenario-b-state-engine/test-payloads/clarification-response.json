@@ -1,0 +1,53 @@
+{
+  "description": "Enriched payload from Scenario A where a tenant responds to a clarification request with additional detail about their maintenance issue. The work item is currently in CLARIFICATION state. The LLM should re-evaluate and determine that sufficient detail now exists to move to ASSESSMENT.",
+  "payload": {
+    "message": {
+      "id": "wamid.HBgLNDQ3NzAwOTAwNDU2FQIAERgSMkYxRjA2QTUyODdGNkI0MkEF",
+      "text": "Sorry about that. It's the main entrance door on the ground floor at Victoria House. The lock mechanism has jammed and we can't lock the door properly. It's a security risk as anyone could walk in. The door is the one facing the car park on Elm Street.",
+      "type": "text",
+      "media_id": "",
+      "timestamp": "1739528400"
+    },
+    "person": {
+      "id": "recABC123DEF789",
+      "phone": "447700900456",
+      "name": "James Cooper",
+      "role": "TENANT",
+      "site_id": "recSITE002"
+    },
+    "command": {
+      "is_command": false,
+      "command": "",
+      "job_id": ""
+    },
+    "work_item": {
+      "exists": true,
+      "id": "recWI001043",
+      "current_state": "CLARIFICATION"
+    },
+    "interaction_log_id": "recLOG005ABC",
+    "source_execution_id": "exec_a_20260215_005"
+  },
+  "expected_behaviour": {
+    "intent_route": "4c - Clarification Response",
+    "should_call_llm": true,
+    "llm_expected_result": {
+      "intent": "CLARIFICATION_RESPONSE",
+      "has_sufficient_detail": true,
+      "urgency": "URGENT",
+      "discipline": "LOCKSMITH",
+      "title": "Jammed lock on main entrance door - ground floor, Victoria House",
+      "description": "Main entrance door lock mechanism jammed. Door cannot be locked. Security risk. Ground floor door facing car park on Elm Street.",
+      "location": "Ground floor main entrance, Victoria House, door facing car park on Elm Street",
+      "recommended_state": "ASSESSMENT",
+      "confidence": 0.92
+    },
+    "should_transition_state": true,
+    "expected_state": "ASSESSMENT",
+    "should_create_job": false,
+    "should_update_work_item": true,
+    "should_notify_tenant": true,
+    "notification_template": "job_created_confirmation",
+    "should_handoff_to_scenario_c": true
+  }
+}

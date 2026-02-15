@@ -1,35 +1,14 @@
-# ============================================
-# SafeFlow - WhatsApp Facilities Management
-# ============================================
-
-# Environment & Secrets
+# Environment variables
 .env
-.env.*
-!.env.example
-*.pem
+.env.local
+.env.*.local
+*.env
+
+# API keys and secrets
+**/secrets/
+**/credentials/
 *.key
-*.cert
-secrets/
-credentials/
-
-# API Keys & Tokens
-**/api-keys*
-**/tokens*
-**/secrets*
-!**/secrets/.gitkeep
-
-# Make.com exports with credentials
-make-scenarios/*-with-credentials.*
-
-# Airtable
-airtable-exports/
-*.airtable-backup
-airtable/backups/*
-!airtable/backups/.gitkeep
-
-# Xero
-xero-tokens/
-xero-oauth-cache/
+*.pem
 
 # Node.js
 node_modules/
@@ -37,7 +16,6 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 package-lock.json
-yarn.lock
 
 # Python
 __pycache__/
@@ -45,47 +23,69 @@ __pycache__/
 *$py.class
 *.so
 .Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
 venv/
 .venv/
-*.egg-info/
-dist/
-build/
-
-# Testing
-coverage/
-.nyc_output/
-test-results/
-*.test-output
+pip-log.txt
+pip-delete-this-directory.txt
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
 
 # IDE
-.vscode/
-!.vscode/settings.json
-!.vscode/extensions.json
 .idea/
+.vscode/
 *.swp
 *.swo
 *~
 .DS_Store
 Thumbs.db
 
+# Airtable backups (large files)
+airtable/backups/
+!airtable/backups/.gitkeep
+
+# LLM evaluation results (generated)
+llm-prompts/*/evaluation-results/*.json
+!llm-prompts/*/evaluation-results/.gitkeep
+
+# Test results
+tests/results/
+tests/**/*.log
+k6-results/
+
+# Make.com scenario exports (contain API keys)
+scenarios/**/blueprint-live.json
+
+# Build artifacts
+*.tar.gz
+*.zip
+
 # Logs
-logs/
 *.log
-*.log.*
+logs/
 
-# Terraform / IaC
-*.tfstate
-*.tfstate.*
-.terraform/
-*.tfvars
-!*.tfvars.example
-
-# Docker
-docker-compose.override.yml
-
-# OS
+# OS files
 .DS_Store
+.DS_Store?
+._*
 .Spotlight-V100
 .Trashes
 ehthumbs.db
-Desktop.ini

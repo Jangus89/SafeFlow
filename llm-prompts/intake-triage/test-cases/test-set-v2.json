@@ -1,0 +1,207 @@
+{
+  "version": "2.0.0",
+  "prompt_version": "v2.0.0",
+  "total_cases": 200,
+  "test_cases": [
+    {
+      "id": "TC-001",
+      "category": "emergency",
+      "tags": ["gas_safe", "gas_leak"],
+      "input": {"message": "Can smell gas really strong in the ground floor kitchen at Meridian House. Everyone's been told to get out", "sender_phone": "+447700900001", "site_name": "Meridian House", "has_media": false},
+      "expected": {"discipline": "GAS_SAFE", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.95, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-002",
+      "category": "emergency",
+      "tags": ["lift", "entrapment"],
+      "input": {"message": "HELP theres someone stuck in the lift at Victoria House 3rd floor they r banging on the doors", "sender_phone": "+447700900002", "site_name": "Victoria House", "has_media": false},
+      "expected": {"discipline": "LIFT_ENGINEER", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.93, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-003",
+      "category": "emergency",
+      "tags": ["plumbing", "burst_pipe"],
+      "input": {"message": "Pipe has burst in the server room at Kings Court water everywhere pouring through the ceiling tiles URGENT", "sender_phone": "+447700900003", "site_name": "Kings Court", "has_media": false},
+      "expected": {"discipline": "PLUMBING", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.92, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-004",
+      "category": "emergency",
+      "tags": ["electrical", "fire"],
+      "input": {"message": "Theres sparks coming from the distribution board in the basement at The Exchange and I can smell burning plastic. Fire brigade called", "sender_phone": "+447700900004", "site_name": "The Exchange", "has_media": false},
+      "expected": {"discipline": "ELECTRICAL", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.95, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-005",
+      "category": "emergency",
+      "tags": ["plumbing", "flooding"],
+      "input": {"message": "Major flood on 2nd floor Harbourside. Water coming through light fittings into the office below. Power tripping out", "sender_phone": "+447700900005", "site_name": "Harbourside", "has_media": true},
+      "expected": {"discipline": "PLUMBING", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.93, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-006",
+      "category": "emergency",
+      "tags": ["gas_safe", "co_alarm"],
+      "input": {"message": "CO alarm going off in the plant room at Castle Business Park unit 7. Nobody going near it til you get here", "sender_phone": "+447700900006", "site_name": "Castle Business Park", "has_media": false},
+      "expected": {"discipline": "GAS_SAFE", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.95, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-007",
+      "category": "emergency",
+      "tags": ["general_maintenance", "structural"],
+      "input": {"message": "Part of the suspended ceiling has collapsed in the open plan office Ashton Gate. Big section come down, desks covered in debris. No one hurt but area not safe", "sender_phone": "+447700900007", "site_name": "Ashton Gate", "has_media": true},
+      "expected": {"discipline": "GENERAL_MAINTENANCE", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.9, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-008",
+      "category": "emergency",
+      "tags": ["electrical", "life_safety"],
+      "input": {"message": "Complete power failure at Crown Chambers. Emergency lighting not working either, people stuck on stairwells in the dark", "sender_phone": "+447700900008", "site_name": "Crown Chambers", "has_media": false},
+      "expected": {"discipline": "ELECTRICAL", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.94, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-009",
+      "category": "emergency",
+      "tags": ["plumbing", "sewage"],
+      "input": {"message": "Sewage coming up through the drains in the car park at Phoenix House. Absolutely stinking, health hazard surely. Its spreading fast", "sender_phone": "+447700900009", "site_name": "Phoenix House", "has_media": false},
+      "expected": {"discipline": "PLUMBING", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.92, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-010",
+      "category": "emergency",
+      "tags": ["fire_safety", "alarm_failure"],
+      "input": {"message": "Fire alarm panel at Riverside showing multiple faults and the system has gone offline completely. We have no fire detection at all right now", "sender_phone": "+447700900010", "site_name": "Riverside", "has_media": false},
+      "expected": {"discipline": "FIRE_SAFETY", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.93, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-011",
+      "category": "emergency",
+      "tags": ["gas_safe", "gas_leak"],
+      "input": {"message": "Gas leak confirmed by national grid at St James Square. Building being evacuated now. Need gas safe engineer ASAP", "sender_phone": "+447700900011", "site_name": "St James Square", "has_media": false},
+      "expected": {"discipline": "GAS_SAFE", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.96, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-012",
+      "category": "emergency",
+      "tags": ["electrical", "shock"],
+      "input": {"message": "Someone just got an electric shock off the hand dryer in the mens toilets Broadgate ground floor!! They seem ok but shaken. Dryer still live", "sender_phone": "+447700900012", "site_name": "Broadgate", "has_media": false},
+      "expected": {"discipline": "ELECTRICAL", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.94, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-013",
+      "category": "emergency",
+      "tags": ["plumbing", "burst_pipe"],
+      "input": {"message": "Rising main has gone at Wellington Place reception area. Massive amount of water. Already 2 inches deep. Need isolating NOW", "sender_phone": "+447700900013", "site_name": "Wellington Place", "has_media": true},
+      "expected": {"discipline": "PLUMBING", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.94, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-014",
+      "category": "emergency",
+      "tags": ["fire_safety", "sprinkler"],
+      "input": {"message": "Sprinkler head gone off on 4th floor Commerce House but theres no fire!! Water going everywhere ruining all the equipment please come quick", "sender_phone": "+447700900014", "site_name": "Commerce House", "has_media": false},
+      "expected": {"discipline": "FIRE_SAFETY", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.92, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-015",
+      "category": "emergency",
+      "tags": ["general_maintenance", "structural"],
+      "input": {"message": "External wall cladding panel come loose at Maritime Centre in the wind. Its hanging off and could fall on someone walking below", "sender_phone": "+447700900015", "site_name": "Maritime Centre", "has_media": true},
+      "expected": {"discipline": "GENERAL_MAINTENANCE", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.91, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-016",
+      "category": "emergency",
+      "tags": ["electrical", "fire"],
+      "input": {"message": "Smoke coming from a socket in meeting room 3 at Meridian House can see scorch marks on the wall. Ive unplugged everything", "sender_phone": "+447700900016", "site_name": "Meridian House", "has_media": true},
+      "expected": {"discipline": "ELECTRICAL", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.94, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-017",
+      "category": "emergency",
+      "tags": ["lift", "entrapment"],
+      "input": {"message": "Wheelchair user trapped in goods lift at Victoria House basement level. Lift wont move at all, intercom not working. Been 20 mins", "sender_phone": "+447700900017", "site_name": "Victoria House", "has_media": false},
+      "expected": {"discipline": "LIFT_ENGINEER", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.95, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-018",
+      "category": "emergency",
+      "tags": ["plumbing", "flooding"],
+      "input": {"message": "Rainwater ingress massive at Kings Court. Flat roof drain blocked and water cascading down internal walls. Electrics getting wet", "sender_phone": "+447700900018", "site_name": "Kings Court", "has_media": false},
+      "expected": {"discipline": "PLUMBING", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.92, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-019",
+      "category": "emergency",
+      "tags": ["gas_safe", "boiler"],
+      "input": {"message": "Boiler making loud banging noises and theres a strong smell of gas coming from the plant room The Exchange. Ive shut the door and keeping everyone away", "sender_phone": "+447700900019", "site_name": "The Exchange", "has_media": false},
+      "expected": {"discipline": "GAS_SAFE", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.95, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-020",
+      "category": "emergency",
+      "tags": ["electrical", "life_safety"],
+      "input": {"message": "Total blackout at Harbourside including emergency lighting. Fire panel on battery backup only. 200+ people in building cant see", "sender_phone": "+447700900020", "site_name": "Harbourside", "has_media": false},
+      "expected": {"discipline": "ELECTRICAL", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.95, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-021",
+      "category": "emergency",
+      "tags": ["plumbing", "sewage"],
+      "input": {"message": "Raw sewage backing up into ground floor toilets at Castle Business Park. Overflowing onto corridor floor. People feeling sick from the smell", "sender_phone": "+447700900021", "site_name": "Castle Business Park", "has_media": false},
+      "expected": {"discipline": "PLUMBING", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.93, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-022",
+      "category": "emergency",
+      "tags": ["fire_safety", "escape_route"],
+      "input": {"message": "Main fire escape door at Ashton Gate jammed shut completely. Cant open it at all. This is the only escape route for floor 2", "sender_phone": "+447700900022", "site_name": "Ashton Gate", "has_media": false},
+      "expected": {"discipline": "FIRE_SAFETY", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.93, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-023",
+      "category": "emergency",
+      "tags": ["general_maintenance", "glass"],
+      "input": {"message": "Large pane of glass in the atrium at Crown Chambers has cracked right across. Looks like it could shatter any moment. People walking underneath", "sender_phone": "+447700900023", "site_name": "Crown Chambers", "has_media": true},
+      "expected": {"discipline": "GENERAL_MAINTENANCE", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.91, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-024",
+      "category": "emergency",
+      "tags": ["hvac", "gas_safe"],
+      "input": {"message": "Smell of gas near the AHU on the roof at Phoenix House. Engineer went up to check and said to call gas emergency. Evac in progress", "sender_phone": "+447700900024", "site_name": "Phoenix House", "has_media": false},
+      "expected": {"discipline": "GAS_SAFE", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.95, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    },
+    {
+      "id": "TC-025",
+      "category": "emergency",
+      "tags": ["electrical", "water_ingress"],
+      "input": {"message": "Lightning strike hit Riverside. Main switchgear tripped, UPS failed, water coming in through damaged roof section above DB. Sparking visible", "sender_phone": "+447700900025", "site_name": "Riverside", "has_media": false},
+      "expected": {"discipline": "ELECTRICAL", "urgency": "EMERGENCY", "routing_decision": "EXTERNAL_CONTRACTOR", "confidence_min": 0.95, "confidence_max": 1.0},
+      "validation_rules": {"urgency_must_be": "EMERGENCY", "must_flag_safety": true}
+    }
+  ]
+}

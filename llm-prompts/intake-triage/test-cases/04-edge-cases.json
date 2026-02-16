@@ -1,0 +1,283 @@
+{
+  "version": "2.0.0",
+  "prompt_version": "v2.0.0",
+  "test_suite": "edge_cases",
+  "description": "Edge cases and unusual scenarios that test boundary conditions, context awareness, and correct handling of tricky or misleading inputs. Mixed urgency levels.",
+  "total_cases": 10,
+  "test_cases": [
+    {
+      "id": "EDGE-001",
+      "category": "edge_case",
+      "tags": ["long_message", "verbose", "plumbing"],
+      "input": {
+        "message": "Right, I need to explain this properly so you understand the full picture. I'm the site manager at Broadmead Towers, BS1 3DQ, and I've been dealing with a persistent issue in the ground floor communal toilets for the past three weeks now. It started with just a slight trickle from the cold water feed pipe behind the cistern in cubicle number two. I called your team about it at the time and was told someone would come out but nobody ever did. Since then it's got progressively worse. The trickle has become a steady drip, roughly one drip every two seconds by my count. I've put a bucket under it which fills up about halfway through the day. The floor around the base of the toilet has started to feel a bit soft and spongy, and I'm worried there might be water damage underneath the vinyl. Additionally, the flush mechanism on the same toilet has become unreliable, you have to hold the handle down for a good ten seconds and jiggle it to get it to flush properly. The tenant in the office directly next to the toilets has also complained about a damp smell coming through the partition wall. I've taken several photos which I can send over if needed. I really need this sorting now before it causes serious damage to the fabric of the building. I've documented everything including dates and times of when I first reported it. Please can someone actually come out this time and deal with it once and for all. Happy to meet the engineer on site any day this week. My direct number is on file. Thanks",
+        "sender_phone": "+447700400001",
+        "site_name": "Broadmead Towers",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "PLUMBING",
+        "urgency": "URGENT",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.8,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "PLUMBING",
+        "urgency_must_not_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false,
+        "must_handle_long_input": true
+      }
+    },
+    {
+      "id": "EDGE-002",
+      "category": "edge_case",
+      "tags": ["all_caps", "frustrated", "electrical"],
+      "input": {
+        "message": "THIS IS THE THIRD TIME IVE REPORTED THIS AND NOBODY HAS DONE ANYTHING ABOUT IT. THE LIGHTS IN THE STAIRWELL AT REGENCY COURT KEEP GOING OFF EVERY SINGLE EVENING AND ITS PITCH BLACK. SOMEONE IS GOING TO FALL DOWN THE STAIRS AND BREAK THEIR NECK AND THEN IT WILL BE YOUR FAULT. I WANT THIS FIXED TODAY NOT NEXT WEEK NOT NEXT MONTH TODAY. I AM ABSOLUTELY FED UP WITH THE STATE OF THIS BUILDING. SORT IT OUT!!!!!!",
+        "sender_phone": "+447700400002",
+        "site_name": "Regency Court",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "ELECTRICAL",
+        "urgency": "URGENT",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.75,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "ELECTRICAL",
+        "urgency_must_not_be": "STANDARD",
+        "must_flag_safety": true,
+        "must_include_certification": ["NICEIC"],
+        "immediate_danger_must_be": false,
+        "must_not_escalate_due_to_tone": true,
+        "must_assess_on_content_not_emotion": true
+      }
+    },
+    {
+      "id": "EDGE-003",
+      "category": "edge_case",
+      "tags": ["polite_downplay", "gas_smell", "emergency_hidden"],
+      "input": {
+        "message": "Sorry to bother you, I know you're probably really busy. It's probably nothing but I think there might be a very faint gas smell in the kitchen area at Hanover Square, W1S 1BN. I'm sure it's fine and it might just be my imagination but I thought I should mention it. No rush at all, whenever someone's free. Thanks ever so much and sorry again for the trouble!",
+        "sender_phone": "+447700400003",
+        "site_name": "Hanover Square",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "GAS_SAFE",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.9,
+        "confidence_max": 1.0,
+        "immediate_danger": true
+      },
+      "validation_rules": {
+        "discipline_must_be": "GAS_SAFE",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "must_include_certification": ["GAS_SAFE"],
+        "immediate_danger_must_be": true,
+        "must_override_sender_urgency_assessment": true,
+        "safety_instructions_must_mention": ["evacuate", "0800 111 999", "do not operate", "electrical switches"],
+        "regulatory_flags_must_include": ["GAS_SAFE_REQUIRED"]
+      }
+    },
+    {
+      "id": "EDGE-004",
+      "category": "edge_case",
+      "tags": ["mixed_language", "bilingual", "hvac"],
+      "input": {
+        "message": "Hi, the aircon unit in office 205 at Crown House is making a terrible noise, like a grinding sound. Bardzo glosno i nie mozna pracowac. It started this morning and it's getting worse. My colleague says it smells funny too, like burning rubber maybe? The unit number on the front says FCU-205-A",
+        "sender_phone": "+447700400004",
+        "site_name": "Crown House",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "HVAC",
+        "urgency": "URGENT",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "HVAC",
+        "urgency_must_not_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false,
+        "must_handle_mixed_language": true
+      }
+    },
+    {
+      "id": "EDGE-005",
+      "category": "edge_case",
+      "tags": ["duplicate", "follow_up", "existing_report"],
+      "input": {
+        "message": "Hiya, I reported a leaking roof at Saxon Court about 2 hours ago but I haven't heard back from anyone yet. It's still leaking, in fact it's got a bit worse. Just wanted to make sure the message got through and someone's actually coming. The bucket's nearly full now. Reference was something like WO-2024-8834 I think?",
+        "sender_phone": "+447700400005",
+        "site_name": "Saxon Court",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "PLUMBING",
+        "urgency": "URGENT",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "PLUMBING",
+        "urgency_must_not_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false,
+        "must_flag_as_possible_duplicate": true,
+        "must_reference_existing_job": true
+      }
+    },
+    {
+      "id": "EDGE-006",
+      "category": "edge_case",
+      "tags": ["out_of_scope", "personal_request", "not_facilities"],
+      "input": {
+        "message": "My car's got a flat tyre in the car park at Merchants Quarter. Can your maintenance bloke come and change it for me? I've got a spare in the boot but I haven't a clue how to do it myself and I've got a meeting at 2. Cheers mate",
+        "sender_phone": "+447700400006",
+        "site_name": "Merchants Quarter",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "must_flag_as_out_of_scope": true,
+        "must_politely_decline": true,
+        "clarification_questions_min": 1
+      }
+    },
+    {
+      "id": "EDGE-007",
+      "category": "edge_case",
+      "tags": ["voice_note_reference", "no_text_content", "media_only"],
+      "input": {
+        "message": "Just sent you a voice note about the problem. Can you listen to it and get back to me? It's easier to explain by talking than typing all this out",
+        "sender_phone": "+447700400007",
+        "site_name": "Unknown",
+        "has_media": true
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["nature_of_issue", "location"],
+        "must_explain_voice_note_limitation": true
+      }
+    },
+    {
+      "id": "EDGE-008",
+      "category": "edge_case",
+      "tags": ["winter_context", "heating_failure", "vulnerable_occupants"],
+      "input": {
+        "message": "The heating's packed in completely at Oakfield Lodge, OX4 2HB. It's the dead of winter and we've got elderly residents on the 2nd floor who are freezing. Temperatures have dropped to about 10 degrees inside the communal areas. The boiler's making clunking noises and then cutting out after a few minutes. We've tried resetting it three times but it just does the same thing. These residents really can't cope with the cold, some of them have health conditions",
+        "sender_phone": "+447700400008",
+        "site_name": "Oakfield Lodge",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "GAS_SAFE",
+        "urgency": "URGENT",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.85,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "GAS_SAFE",
+        "urgency_must_be": "URGENT",
+        "must_flag_safety": true,
+        "must_include_certification": ["GAS_SAFE"],
+        "immediate_danger_must_be": false,
+        "must_flag_vulnerable_occupants": true,
+        "regulatory_flags_must_include": ["GAS_SAFE_REQUIRED"]
+      }
+    },
+    {
+      "id": "EDGE-009",
+      "category": "edge_case",
+      "tags": ["friday_afternoon", "weekend_context", "timing"],
+      "input": {
+        "message": "Hi, it's Friday afternoon and I know everyone's probably winding down for the weekend but the hot water's gone in the staff showers at Monument Park, CF10 5BH. The gym in the basement has a session finishing at 5 and about 20 people are going to need showers. Cold water still works fine, just no hot. Any chance someone could take a quick look before the weekend? Otherwise nobody will be able to use the showers til Monday",
+        "sender_phone": "+447700400009",
+        "site_name": "Monument Park",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "PLUMBING",
+        "urgency": "URGENT",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "PLUMBING",
+        "urgency_must_not_be": "EMERGENCY",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false,
+        "must_consider_timing_context": true
+      }
+    },
+    {
+      "id": "EDGE-010",
+      "category": "edge_case",
+      "tags": ["asbestos", "1970s_building", "specialist", "regulatory"],
+      "input": {
+        "message": "We're clearing out the old storage room on the top floor of Whitworth House, built around 1972 I think. Found some crumbly looking lagging round the pipes and what looks like old textured ceiling coating that's flaking off. Nobody's touched it but given the age of the building I'm a bit worried it might be asbestos. Some of the ceiling tiles are broken too and there's dusty stuff on the shelves. Didn't want to disturb anything further til we know what we're dealing with",
+        "sender_phone": "+447700400010",
+        "site_name": "Whitworth House",
+        "has_media": true
+      },
+      "expected": {
+        "discipline": "SPECIALIST",
+        "urgency": "URGENT",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.85,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "SPECIALIST",
+        "urgency_must_be": "URGENT",
+        "must_flag_safety": true,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false,
+        "regulatory_flags_must_include": ["ASBESTOS_REGULATIONS", "CAR_2012"],
+        "safety_instructions_must_mention": ["do not disturb", "restrict access", "asbestos survey"]
+      }
+    }
+  ]
+}

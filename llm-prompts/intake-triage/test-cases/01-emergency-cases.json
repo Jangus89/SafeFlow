@@ -1,0 +1,277 @@
+{
+  "version": "2.0.0",
+  "prompt_version": "v2.0.0",
+  "test_suite": "emergency",
+  "description": "Emergency scenarios requiring immediate response (15-minute SLA). All cases must be classified as EMERGENCY urgency with appropriate safety flags.",
+  "total_cases": 10,
+  "test_cases": [
+    {
+      "id": "EMRG-001",
+      "category": "emergency",
+      "tags": ["gas_safe", "gas_leak", "immediate_danger"],
+      "input": {
+        "message": "Can smell gas proper strong in flat 4B at Cabot Tower, SE1 9RT. It's been getting worse over the last 20 mins. I've opened the windows but I'm worried sick. The kids are here and I don't know what to do. Please help ASAP",
+        "sender_phone": "+447700100001",
+        "site_name": "Cabot Tower",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "GAS_SAFE",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.93,
+        "confidence_max": 1.0,
+        "immediate_danger": true
+      },
+      "validation_rules": {
+        "discipline_must_be": "GAS_SAFE",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "must_include_certification": ["GAS_SAFE"],
+        "safety_instructions_must_mention": ["evacuate", "0800 111 999", "do not operate", "electrical switches"],
+        "immediate_danger_must_be": true,
+        "emergency_services_needed_must_be": true,
+        "regulatory_flags_must_include": ["GAS_SAFE_REQUIRED"]
+      }
+    },
+    {
+      "id": "EMRG-002",
+      "category": "emergency",
+      "tags": ["lift_engineer", "entrapment", "immediate_danger"],
+      "input": {
+        "message": "URGENT theres 3 people stuck in the main passenger lift at Brunel House, floor indicator says between 2 and 3. One of them is claustrophobic and panicking badly. Alarm bell is ringing but no one answered the intercom. Been 15 mins now",
+        "sender_phone": "+447700100002",
+        "site_name": "Brunel House",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "LIFT_ENGINEER",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.95,
+        "confidence_max": 1.0,
+        "immediate_danger": true
+      },
+      "validation_rules": {
+        "discipline_must_be": "LIFT_ENGINEER",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "must_include_certification": ["LIFT_ENGINEER"],
+        "immediate_danger_must_be": true,
+        "regulatory_flags_must_include": ["LOLER_INSPECTION"]
+      }
+    },
+    {
+      "id": "EMRG-003",
+      "category": "emergency",
+      "tags": ["plumbing", "burst_pipe", "flooding"],
+      "input": {
+        "message": "Pipe's burst in the gents bogs on the ground floor at Harbourside Court, BS1 4AH! Water absolutely pissing everywhere, coming through the ceiling tiles into the office below. We've put bins under it but it's not stopping. Need someone NOW",
+        "sender_phone": "+447700100003",
+        "site_name": "Harbourside Court",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "PLUMBING",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.92,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "PLUMBING",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "must_include_certification": []
+      }
+    },
+    {
+      "id": "EMRG-004",
+      "category": "emergency",
+      "tags": ["electrical", "fire_smell", "immediate_danger"],
+      "input": {
+        "message": "There's a really strong burning smell coming from the fuse board in the comms room at Gloucester House, 2nd floor. Can see scorch marks on the wall behind the consumer unit and the plastic casing looks melted. I've not touched it. Everyone's left the floor",
+        "sender_phone": "+447700100004",
+        "site_name": "Gloucester House",
+        "has_media": true
+      },
+      "expected": {
+        "discipline": "ELECTRICAL",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.94,
+        "confidence_max": 1.0,
+        "immediate_danger": true
+      },
+      "validation_rules": {
+        "discipline_must_be": "ELECTRICAL",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "must_include_certification": ["NICEIC"],
+        "immediate_danger_must_be": true,
+        "emergency_services_needed_must_be": true
+      }
+    },
+    {
+      "id": "EMRG-005",
+      "category": "emergency",
+      "tags": ["gas_safe", "carbon_monoxide", "immediate_danger"],
+      "input": {
+        "message": "CO alarm has gone off in the plant room at Millbrook Business Centre, unit 12. The alarm's been screaming for 5 minutes. I've shut the door to the plant room and told everyone on the ground floor to stay away. What do I do??",
+        "sender_phone": "+447700100005",
+        "site_name": "Millbrook Business Centre",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "GAS_SAFE",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.95,
+        "confidence_max": 1.0,
+        "immediate_danger": true
+      },
+      "validation_rules": {
+        "discipline_must_be": "GAS_SAFE",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "must_include_certification": ["GAS_SAFE"],
+        "immediate_danger_must_be": true,
+        "emergency_services_needed_must_be": true,
+        "regulatory_flags_must_include": ["GAS_SAFE_REQUIRED"],
+        "safety_instructions_must_mention": ["evacuate", "ventilate", "0800 111 999"]
+      }
+    },
+    {
+      "id": "EMRG-006",
+      "category": "emergency",
+      "tags": ["specialist", "structural", "immediate_danger"],
+      "input": {
+        "message": "Massive crack appeared in the load bearing wall on the 3rd floor of Redcliffe Chambers, near the stairwell. You can see daylight through it and the door frames have shifted. Happened overnight, wasn't there yesterday. The floor feels uneven now. We're evacuating our office",
+        "sender_phone": "+447700100006",
+        "site_name": "Redcliffe Chambers",
+        "has_media": true
+      },
+      "expected": {
+        "discipline": "SPECIALIST",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.91,
+        "confidence_max": 1.0,
+        "immediate_danger": true
+      },
+      "validation_rules": {
+        "discipline_must_be": "SPECIALIST",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "immediate_danger_must_be": true,
+        "emergency_services_needed_must_be": true
+      }
+    },
+    {
+      "id": "EMRG-007",
+      "category": "emergency",
+      "tags": ["plumbing", "sewage", "health_hazard"],
+      "input": {
+        "message": "Sewage is coming up through the drains in the basement car park at St Andrew's Gate, LS2 7PY. It's raw sewage, absolutely honking, spreading across the whole parking area. People are gagging from the smell on the ground floor. Health and safety nightmare this",
+        "sender_phone": "+447700100007",
+        "site_name": "St Andrew's Gate",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "PLUMBING",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.92,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "PLUMBING",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "must_include_certification": []
+      }
+    },
+    {
+      "id": "EMRG-008",
+      "category": "emergency",
+      "tags": ["electrical", "power_failure", "life_safety"],
+      "input": {
+        "message": "Total power failure at Queensgate Tower, all 8 floors gone dark. Emergency lighting came on for about 10 mins then that's gone off too. People using phone torches in the stairwells. Fire panel is on battery only and beeping. Lifts are all stuck. This is dangerous",
+        "sender_phone": "+447700100008",
+        "site_name": "Queensgate Tower",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "ELECTRICAL",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.95,
+        "confidence_max": 1.0,
+        "immediate_danger": true
+      },
+      "validation_rules": {
+        "discipline_must_be": "ELECTRICAL",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "must_include_certification": ["NICEIC"],
+        "immediate_danger_must_be": true,
+        "emergency_services_needed_must_be": true
+      }
+    },
+    {
+      "id": "EMRG-009",
+      "category": "emergency",
+      "tags": ["fire_safety", "alarm_total_failure", "life_safety"],
+      "input": {
+        "message": "The whole fire alarm system at Waterfront Plaza has completely failed. Panel screen is blank, no zones showing, can't even do a manual test. We've got 400+ people in this building with zero fire detection. This can't be legal. Responsible person has been notified but we need engineers NOW",
+        "sender_phone": "+447700100009",
+        "site_name": "Waterfront Plaza",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "FIRE_SAFETY",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.93,
+        "confidence_max": 1.0,
+        "immediate_danger": true
+      },
+      "validation_rules": {
+        "discipline_must_be": "FIRE_SAFETY",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "must_include_certification": [],
+        "immediate_danger_must_be": true,
+        "regulatory_flags_must_include": ["FIRE_SAFETY_ORDER"]
+      }
+    },
+    {
+      "id": "EMRG-010",
+      "category": "emergency",
+      "tags": ["general_maintenance", "security_breach", "immediate_danger"],
+      "input": {
+        "message": "Someone's smashed through the main entrance doors at Kingswood Business Park, M4 5BD, glass everywhere. The doors won't close at all and the lock mechanism is completely destroyed. Building is wide open and it's midnight, got valuable equipment in the ground floor units. Security cameras show people hanging around outside. I'm the night guard and I can't secure the building",
+        "sender_phone": "+447700100010",
+        "site_name": "Kingswood Business Park",
+        "has_media": true
+      },
+      "expected": {
+        "discipline": "GENERAL_MAINTENANCE",
+        "urgency": "EMERGENCY",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.88,
+        "confidence_max": 1.0,
+        "immediate_danger": true
+      },
+      "validation_rules": {
+        "discipline_must_be": "GENERAL_MAINTENANCE",
+        "urgency_must_be": "EMERGENCY",
+        "must_flag_safety": true,
+        "immediate_danger_must_be": true,
+        "emergency_services_needed_must_be": true
+      }
+    }
+  ]
+}

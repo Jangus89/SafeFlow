@@ -1,0 +1,260 @@
+{
+  "version": "2.0.0",
+  "prompt_version": "v2.0.0",
+  "test_suite": "clarification",
+  "description": "Ambiguous or incomplete intake messages that require follow-up questions before routing. All cases must be classified with routing_decision NEEDS_CLARIFICATION and confidence below 0.6.",
+  "total_cases": 10,
+  "test_cases": [
+    {
+      "id": "CLAR-001",
+      "category": "needs_clarification",
+      "tags": ["vague", "no_detail", "ambiguous"],
+      "input": {
+        "message": "Something's wrong in the building, not sure what it is but it doesn't seem right. Can you send someone?",
+        "sender_phone": "+447700300001",
+        "site_name": "Unknown",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["nature_of_issue", "location"]
+      }
+    },
+    {
+      "id": "CLAR-002",
+      "category": "needs_clarification",
+      "tags": ["greeting_only", "no_issue", "incomplete"],
+      "input": {
+        "message": "Hi",
+        "sender_phone": "+447700300002",
+        "site_name": "Unknown",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["nature_of_issue"]
+      }
+    },
+    {
+      "id": "CLAR-003",
+      "category": "needs_clarification",
+      "tags": ["no_location", "missing_context"],
+      "input": {
+        "message": "There's a leak coming through the ceiling and it's making a right mess. Can someone come and sort it please?",
+        "sender_phone": "+447700300003",
+        "site_name": "Unknown",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "PLUMBING",
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["location", "severity"]
+      }
+    },
+    {
+      "id": "CLAR-004",
+      "category": "needs_clarification",
+      "tags": ["multiple_issues", "unclear_priority"],
+      "input": {
+        "message": "Right so we've got a few things going on at Orchard House. The heating's not great, there's a funny smell near the toilets, one of the ceiling tiles is sagging, and the front door keypad is playing up. Oh and the car park lights are out. Which one do you want first?",
+        "sender_phone": "+447700300004",
+        "site_name": "Orchard House",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["priority", "individual_issue_details"]
+      }
+    },
+    {
+      "id": "CLAR-005",
+      "category": "needs_clarification",
+      "tags": ["photo_reference", "no_description", "media_only"],
+      "input": {
+        "message": "See attached photo. Can you fix this?",
+        "sender_phone": "+447700300005",
+        "site_name": "Unknown",
+        "has_media": true
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["nature_of_issue", "location"]
+      }
+    },
+    {
+      "id": "CLAR-006",
+      "category": "needs_clarification",
+      "tags": ["foreign_language", "non_english", "translation_needed"],
+      "input": {
+        "message": "Il y a un probleme avec le chauffage dans le bureau. C'est tres froid et personne ne peut travailler",
+        "sender_phone": "+447700300006",
+        "site_name": "Unknown",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["language_confirmation", "location"]
+      }
+    },
+    {
+      "id": "CLAR-007",
+      "category": "needs_clarification",
+      "tags": ["non_facilities", "it_issue", "out_of_scope"],
+      "input": {
+        "message": "The wifi keeps dropping out on the 4th floor of Albion Court and nobody can get on the internet. We've tried restarting the router thingy in the comms cupboard but it didn't help. Can your team sort it?",
+        "sender_phone": "+447700300007",
+        "site_name": "Albion Court",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["scope_confirmation"],
+        "should_suggest_redirect": true
+      }
+    },
+    {
+      "id": "CLAR-008",
+      "category": "needs_clarification",
+      "tags": ["follow_up", "existing_job", "reference_number"],
+      "input": {
+        "message": "Just checking on that job from last week, has the engineer been booked yet? My manager's asking for an update. Ref number is somewhere in my emails, I'll dig it out if you need it",
+        "sender_phone": "+447700300008",
+        "site_name": "Unknown",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["reference_number", "original_issue"]
+      }
+    },
+    {
+      "id": "CLAR-009",
+      "category": "needs_clarification",
+      "tags": ["ambiguous_severity", "unclear_urgency"],
+      "input": {
+        "message": "There's water on the floor near the boiler at Grafton Mews. Not sure if it's a drip from somewhere or condensation or what. It's not loads but I thought I should mention it just in case",
+        "sender_phone": "+447700300009",
+        "site_name": "Grafton Mews",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["water_source", "quantity", "boiler_type"]
+      }
+    },
+    {
+      "id": "CLAR-010",
+      "category": "needs_clarification",
+      "tags": ["very_short", "minimal_info", "ambiguous"],
+      "input": {
+        "message": "Broken",
+        "sender_phone": "+447700300010",
+        "site_name": "Unknown",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": null,
+        "urgency": null,
+        "routing_decision": "NEEDS_CLARIFICATION",
+        "confidence_min": 0.0,
+        "confidence_max": 0.6,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "routing_decision_must_be": "NEEDS_CLARIFICATION",
+        "confidence_must_be_below": 0.6,
+        "clarification_questions_min": 1,
+        "must_ask_about": ["nature_of_issue", "location", "what_is_broken"]
+      }
+    }
+  ]
+}

@@ -1,0 +1,270 @@
+{
+  "version": "2.0.0",
+  "prompt_version": "v2.0.0",
+  "test_suite": "standard",
+  "description": "Standard urgency scenarios that can be scheduled within normal SLA windows. All cases must be classified as STANDARD urgency with confidence above 0.7.",
+  "total_cases": 10,
+  "test_cases": [
+    {
+      "id": "STND-001",
+      "category": "standard",
+      "tags": ["plumbing", "dripping_tap", "non_urgent"],
+      "input": {
+        "message": "Hiya, the kitchen tap in unit 3A at Ashworth House, M20 1LP has got a constant drip. It's been going a couple of days now, not flooding or anything but it's wasting water and the drip drip drip is driving everyone mad. Could someone pop round when they get a chance? Cheers",
+        "sender_phone": "+447700200001",
+        "site_name": "Ashworth House",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "PLUMBING",
+        "urgency": "STANDARD",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "PLUMBING",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false
+      }
+    },
+    {
+      "id": "STND-002",
+      "category": "standard",
+      "tags": ["electrical", "flickering_light", "non_urgent"],
+      "input": {
+        "message": "One of the fluorescent tubes in the open plan office on the 2nd floor of Parkview House keeps flickering on and off. It's been doing it for about a week. Not a massive deal but it's giving a few of us headaches and it's quite annoying when you're trying to work. Bay nearest the window by desk 14",
+        "sender_phone": "+447700200002",
+        "site_name": "Parkview House",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "ELECTRICAL",
+        "urgency": "STANDARD",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "ELECTRICAL",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": ["NICEIC"],
+        "immediate_danger_must_be": false
+      }
+    },
+    {
+      "id": "STND-003",
+      "category": "standard",
+      "tags": ["hvac", "thermostat", "comfort"],
+      "input": {
+        "message": "The thermostat in meeting room 4 at Castlegate Business Centre, LS1 3BG doesn't seem to be working properly. We set it to 21 degrees but the room never gets above about 17. It's been like this for a fortnight. Not the end of the world but clients have been commenting it's a bit chilly. Ta",
+        "sender_phone": "+447700200003",
+        "site_name": "Castlegate Business Centre",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "HVAC",
+        "urgency": "STANDARD",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "HVAC",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false
+      }
+    },
+    {
+      "id": "STND-004",
+      "category": "standard",
+      "tags": ["general_maintenance", "door_handle", "non_urgent"],
+      "input": {
+        "message": "The door handle on the main entrance to Suite B at Riverside Walk has come loose. It still opens and closes fine but it wobbles about and feels like it might come off completely at some point. Not urgent but would be good to get it sorted before it breaks entirely",
+        "sender_phone": "+447700200004",
+        "site_name": "Riverside Walk",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "GENERAL_MAINTENANCE",
+        "urgency": "STANDARD",
+        "routing_decision": "INTERNAL_TEAM",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "GENERAL_MAINTENANCE",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false
+      }
+    },
+    {
+      "id": "STND-005",
+      "category": "standard",
+      "tags": ["general_maintenance", "carpet", "trip_hazard"],
+      "input": {
+        "message": "Hi there, bit of the carpet has come loose near the reception desk at Pennine House, BD1 1HQ. It's curling up at the edge by the front door. Put some tape on it for now but it keeps peeling off. Someone might trip on it eventually so would be nice to get it fixed properly when you can",
+        "sender_phone": "+447700200005",
+        "site_name": "Pennine House",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "GENERAL_MAINTENANCE",
+        "urgency": "STANDARD",
+        "routing_decision": "INTERNAL_TEAM",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "GENERAL_MAINTENANCE",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false
+      }
+    },
+    {
+      "id": "STND-006",
+      "category": "standard",
+      "tags": ["plumbing", "minor_blockage", "slow_drain"],
+      "input": {
+        "message": "The sink in the ladies' loo on the first floor of Thornbury House is draining dead slow. Takes a good 5 minutes to empty after washing your hands. Probably needs a bit of a clear out. Not blocked completely, just really sluggish. Been like it a couple of weeks now",
+        "sender_phone": "+447700200006",
+        "site_name": "Thornbury House",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "PLUMBING",
+        "urgency": "STANDARD",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "PLUMBING",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false
+      }
+    },
+    {
+      "id": "STND-007",
+      "category": "standard",
+      "tags": ["electrical", "socket", "single_fault"],
+      "input": {
+        "message": "One of the double sockets behind desk 7 in the main office at Baynard House, EC4V 3TE has stopped working. Tried different appliances in it and nothing powers on. The other sockets nearby are fine so it's just that one. No scorch marks or anything dodgy, just dead. No rush but it'd be handy to get it working again",
+        "sender_phone": "+447700200007",
+        "site_name": "Baynard House",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "ELECTRICAL",
+        "urgency": "STANDARD",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "ELECTRICAL",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": ["NICEIC"],
+        "immediate_danger_must_be": false
+      }
+    },
+    {
+      "id": "STND-008",
+      "category": "standard",
+      "tags": ["fire_safety", "extinguisher_service", "compliance"],
+      "input": {
+        "message": "Just noticed the fire extinguisher on the ground floor corridor at Whitefriars House, ME14 1JP has a service tag showing it was last inspected in January 2024. Pretty sure it's overdue for its annual service. All the others on this floor seem to be the same. Thought I should flag it",
+        "sender_phone": "+447700200008",
+        "site_name": "Whitefriars House",
+        "has_media": true
+      },
+      "expected": {
+        "discipline": "FIRE_SAFETY",
+        "urgency": "STANDARD",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "FIRE_SAFETY",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false,
+        "regulatory_flags_must_include": ["FIRE_SAFETY_ORDER"]
+      }
+    },
+    {
+      "id": "STND-009",
+      "category": "standard",
+      "tags": ["general_maintenance", "car_park_barrier", "access"],
+      "input": {
+        "message": "The car park barrier at Jubilee Court, B5 4UA is playing up again. It lifts fine but takes ages to come back down, about 30 seconds delay. Still works just really slow. A few people have mentioned it this week. Not stopping anyone getting in or out, just a nuisance. When someone's free could they have a look?",
+        "sender_phone": "+447700200009",
+        "site_name": "Jubilee Court",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "GENERAL_MAINTENANCE",
+        "urgency": "STANDARD",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "GENERAL_MAINTENANCE",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false
+      }
+    },
+    {
+      "id": "STND-010",
+      "category": "standard",
+      "tags": ["general_maintenance", "pest_sighting", "hygiene"],
+      "input": {
+        "message": "Spotted a couple of mice droppings in the kitchen area on the 3rd floor of Wellington Chambers, NE1 6AG. Not seen any actual mice but the droppings are definitely fresh. Might be worth getting pest control to have a look before it becomes a bigger problem. Cleaned it up for now but wanted to report it",
+        "sender_phone": "+447700200010",
+        "site_name": "Wellington Chambers",
+        "has_media": false
+      },
+      "expected": {
+        "discipline": "GENERAL_MAINTENANCE",
+        "urgency": "STANDARD",
+        "routing_decision": "EXTERNAL_CONTRACTOR",
+        "confidence_min": 0.7,
+        "confidence_max": 1.0,
+        "immediate_danger": false
+      },
+      "validation_rules": {
+        "discipline_must_be": "GENERAL_MAINTENANCE",
+        "urgency_must_be": "STANDARD",
+        "must_flag_safety": false,
+        "must_include_certification": [],
+        "immediate_danger_must_be": false
+      }
+    }
+  ]
+}

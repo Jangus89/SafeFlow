@@ -29,7 +29,8 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+# lib/ — excluded from gitignore; SafeFlow uses lib/ for shared modules
+# lib/
 lib64/
 parts/
 sdist/

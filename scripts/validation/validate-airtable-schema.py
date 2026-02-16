@@ -39,6 +39,7 @@ VALID_FIELD_TYPES = {
 REQUIRED_TABLES = [
     "Work_Items", "Sites", "Contractors", "Quotes", "People",
     "Payments", "Interaction_Logs", "Question_Bank", "Errors",
+    "Audit_Trail",
 ]
 
 REQUIRED_STATES = [

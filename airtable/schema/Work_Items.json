@@ -158,10 +158,26 @@
       "field_id": "fldWILLMConfidence",
       "name": "llm_confidence",
       "type": "number",
-      "description": "Confidence score (0.00 to 1.00) from the LLM extraction process. Scores below 0.70 trigger clarification flow",
+      "description": "Confidence score (0.00 to 1.00) from the LLM extraction process. Scores below 0.75 trigger supervisor review",
       "options": {
         "precision": 2
       }
+    },
+    {
+      "field_id": "fldWINeedsReview",
+      "name": "needs_review",
+      "type": "checkbox",
+      "description": "When true, the work item has been flagged for supervisor review due to low AI confidence (< 0.75), AI fallback activation, or contractor assignment failure. Items with this flag are NOT auto-assigned.",
+      "options": {
+        "icon": "check",
+        "color": "orangeBright"
+      }
+    },
+    {
+      "field_id": "fldWIReasoningSummary",
+      "name": "reasoning_summary",
+      "type": "multilineText",
+      "description": "Short text summary from the AI triage explaining the classification rationale. Always populated on AI triage, including fallback cases."
     },
     {
       "field_id": "fldWILocBuilding",
@@ -439,13 +455,29 @@
       "sort": [
         { "field": "priority_score", "direction": "desc" }
       ]
+    },
+    {
+      "name": "Supervisor Review Queue",
+      "type": "grid",
+      "description": "Work items flagged for supervisor review due to low AI confidence, fallback activation, or unassigned contractors",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "needs_review", "operator": "isEqual", "value": true },
+          { "field": "current_state", "operator": "isNoneOf", "value": ["CLOSED", "CANCELLED"] }
+        ]
+      },
+      "sort": [
+        { "field": "priority_score", "direction": "desc" },
+        { "field": "created_at", "direction": "asc" }
+      ]
     }
   ],
   "relationships": {
     "belongs_to": ["Sites", "People", "Contractors"],
-    "has_many": ["Quotes", "Payments", "Interaction_Logs", "Errors"]
+    "has_many": ["Quotes", "Payments", "Interaction_Logs", "Errors", "Audit_Trail"]
   },
-  "field_count": 35,
+  "field_count": 37,
   "formula_count": 4,
   "link_count": 4
 }

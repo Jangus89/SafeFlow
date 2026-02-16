@@ -30,46 +30,23 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Structured JSON logging
+# Centralised structured JSON logging (via lib.logger)
 # ---------------------------------------------------------------------------
 
-class JSONFormatter(logging.Formatter):
-    """Format log records as JSON lines."""
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from lib.logger import get_logger as _get_safeflow_logger  # noqa: E402
 
-    def format(self, record: logging.LogRecord) -> str:
-        log_entry: dict[str, Any] = {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "level": record.levelname,
-            "message": record.getMessage(),
-            "logger": record.name,
-        }
-        if hasattr(record, "extra_data"):
-            log_entry["data"] = record.extra_data  # type: ignore[attr-defined]
-        if record.exc_info and record.exc_info[1]:
-            log_entry["exception"] = str(record.exc_info[1])
-        return json.dumps(log_entry)
-
-
-def setup_logging() -> logging.Logger:
-    """Configure structured JSON logging."""
-    logger = logging.getLogger("restore-airtable")
-    logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setFormatter(JSONFormatter())
-    logger.addHandler(handler)
-    return logger
-
-
-logger = setup_logging()
+_sf_log = _get_safeflow_logger("restore")
 
 
 def log_with_data(level: int, message: str, **kwargs: Any) -> None:
     """Emit a structured log entry with extra data fields."""
-    record = logger.makeRecord(
-        logger.name, level, "(restore)", 0, message, (), None
-    )
-    record.extra_data = kwargs  # type: ignore[attr-defined]
-    logger.handle(record)
+    if level >= logging.ERROR:
+        _sf_log.error(message, **kwargs)
+    elif level >= logging.WARNING:
+        _sf_log.warn(message, **kwargs)
+    else:
+        _sf_log.info(message, **kwargs)
 
 
 # ---------------------------------------------------------------------------

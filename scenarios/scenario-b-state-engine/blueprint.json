@@ -318,9 +318,105 @@
       },
       "error_handler": {
         "type": "route",
-        "target_module": 99,
-        "note": "LLM failures are critical - route to error handler. Include the raw payload for manual triage."
+        "target_module": "5b",
+        "note": "LLM failures route to deterministic fallback — never silently fail."
       }
+    },
+    {
+      "id": "5b",
+      "name": "Deterministic AI Fallback",
+      "type": "transformer",
+      "description": "When AI triage fails (API error, timeout, invalid JSON), apply a safe deterministic fallback: category=GENERAL_MAINTENANCE, priority=STANDARD, needs_review=true. This ensures the flow NEVER blocks on AI failure.",
+      "config": {
+        "trigger": "LLM_FAILURE",
+        "mappings": {
+          "triage_result": {
+            "intent": "NEW_ISSUE",
+            "has_sufficient_detail": false,
+            "urgency": "STANDARD",
+            "discipline": "GENERAL_MAINTENANCE",
+            "title": "Unclassified issue - requires manual review",
+            "description": "{{inbound_payload.message.text}}",
+            "location": "",
+            "recommended_state": "ASSESSMENT",
+            "confidence": 0.0,
+            "reasoning": "AI fallback: LLM triage failed. Defaulting to GENERAL_MAINTENANCE / STANDARD for supervisor review.",
+            "needs_review": true,
+            "fallback_used": true
+          }
+        },
+        "side_effects": {
+          "log_event": {
+            "level": "ERROR",
+            "message": "AI triage failed — deterministic fallback activated",
+            "job_id": "{{ifempty(inbound_payload.work_item.id, 'NEW')}}",
+            "facility_id": "{{ifempty(inbound_payload.person.site_id, '')}}",
+            "message_id": "{{inbound_payload.message.id}}",
+            "error": "{{error.message}}"
+          },
+          "increment_counter": "ai_failures"
+        }
+      },
+      "output": "triage_result"
+    },
+    {
+      "id": "5c",
+      "name": "AI Confidence Gate",
+      "type": "transformer",
+      "description": "Evaluate triage confidence score. If confidence < 0.75: set needs_review=true, do NOT auto-assign contractor, route to supervisor queue. Every triage output includes: category, priority, confidence_score, reasoning_summary.",
+      "config": {
+        "mappings": {
+          "confidence_score": "{{ifempty(triage_result.confidence, 0.0)}}",
+          "needs_review": "{{if(ifempty(triage_result.confidence, 0.0) < 0.75, true, ifempty(triage_result.needs_review, false))}}",
+          "category": "{{ifempty(triage_result.discipline, 'GENERAL_MAINTENANCE')}}",
+          "priority": "{{ifempty(triage_result.urgency, 'STANDARD')}}",
+          "reasoning_summary": "{{ifempty(triage_result.reasoning, '')}}",
+          "suppress_auto_assign": "{{if(ifempty(triage_result.confidence, 0.0) < 0.75, true, false)}}",
+          "route_to_supervisor": "{{if(ifempty(triage_result.confidence, 0.0) < 0.75, true, false)}}"
+        },
+        "side_effects": {
+          "log_low_confidence": {
+            "condition": "{{if(ifempty(triage_result.confidence, 0.0) < 0.75, true, false)}}",
+            "level": "WARN",
+            "message": "Low confidence triage — routing to supervisor queue",
+            "job_id": "{{ifempty(inbound_payload.work_item.id, 'NEW')}}",
+            "facility_id": "{{ifempty(inbound_payload.person.site_id, '')}}",
+            "message_id": "{{inbound_payload.message.id}}",
+            "confidence_score": "{{ifempty(triage_result.confidence, 0.0)}}",
+            "category": "{{ifempty(triage_result.discipline, 'GENERAL_MAINTENANCE')}}",
+            "priority": "{{ifempty(triage_result.urgency, 'STANDARD')}}"
+          },
+          "increment_counter": "{{if(ifempty(triage_result.confidence, 0.0) < 0.75, 'low_confidence_jobs', '')}}"
+        }
+      },
+      "output": "confidence_gate"
+    },
+    {
+      "id": "5d",
+      "name": "Media Parse Fallback",
+      "type": "transformer",
+      "description": "If WhatsApp media parsing fails, create the job WITHOUT media and log the media error. The flow continues unblocked. No silent failures.",
+      "config": {
+        "trigger_condition": "{{inbound_payload.message.type = 'image' OR inbound_payload.message.type = 'document' OR inbound_payload.message.type = 'audio' OR inbound_payload.message.type = 'video'}}",
+        "mappings": {
+          "media_available": "{{if(inbound_payload.message.media_id != '' AND inbound_payload.message.media_id != emptystring, true, false)}}",
+          "media_url": "{{ifempty(inbound_payload.message.media_url, '')}}",
+          "media_error": "{{if(inbound_payload.message.media_id != '' AND ifempty(inbound_payload.message.media_url, '') = '', 'Media ID present but URL could not be resolved', '')}}",
+          "continue_without_media": true
+        },
+        "side_effects": {
+          "log_media_failure": {
+            "condition": "{{if(inbound_payload.message.media_id != '' AND ifempty(inbound_payload.message.media_url, '') = '', true, false)}}",
+            "level": "WARN",
+            "message": "Media parsing failed — continuing without media",
+            "job_id": "{{ifempty(inbound_payload.work_item.id, 'NEW')}}",
+            "message_id": "{{inbound_payload.message.id}}",
+            "media_id": "{{inbound_payload.message.media_id}}"
+          },
+          "increment_counter": "media_parse_failures"
+        }
+      },
+      "output": "media_result"
     },
     {
       "id": 6,
@@ -438,6 +534,9 @@
           "created_at": "{{if(validated_transition.is_new_work_item, now, undefined)}}",
           "sla_due_at": "{{if(validated_transition.is_new_work_item, addMinutes(now, if(validated_transition.urgency = 'EMERGENCY', 240, if(validated_transition.urgency = 'URGENT', 1440, if(validated_transition.urgency = 'STANDARD', 4320, 20160)))), undefined)}}",
           "sla_response_due_at": "{{if(validated_transition.is_new_work_item, addMinutes(now, if(validated_transition.urgency = 'EMERGENCY', 15, if(validated_transition.urgency = 'URGENT', 60, if(validated_transition.urgency = 'STANDARD', 240, 1440)))), undefined)}}",
+          "needs_review": "{{ifempty(confidence_gate.needs_review, false)}}",
+          "reasoning_summary": "{{ifempty(confidence_gate.reasoning_summary, ifempty(validated_transition.transition_reason, ''))}}",
+          "llm_confidence": "{{ifempty(confidence_gate.confidence_score, ifempty(triage_result.confidence, ''))}}",
           "quote_amount": "{{if(inbound_payload.command.command = 'QUOTE', command_result.extract_quote_amount, undefined)}}",
           "state_history": "{{if(inbound_payload.work_item.exists, ifempty(work_item_lookup[0].fields.state_history, '') + '\\n' + formatDate(now, 'YYYY-MM-DD HH:mm:ss') + ' | ' + ifempty(inbound_payload.work_item.current_state, 'NEW') + ' -> ' + validated_transition.final_target_state + ' | ' + validated_transition.transition_reason + ' | by ' + inbound_payload.person.name + ' (' + inbound_payload.person.role + ')', formatDate(now, 'YYYY-MM-DD HH:mm:ss') + ' | NEW -> ' + validated_transition.final_target_state + ' | ' + validated_transition.transition_reason + ' | by ' + inbound_payload.person.name + ' (' + inbound_payload.person.role + ')')}}"
         }
@@ -488,6 +587,70 @@
         "type": "ignore",
         "note": "Interaction log update is non-critical. Do not fail the execution over this."
       }
+    },
+    {
+      "id": "11b",
+      "name": "Write Audit Trail",
+      "type": "airtable_create",
+      "description": "Write every state transition to the Audit_Trail table. Captures previous_state, new_state, triggered_by (ai/system/user), actor, and timestamp. This is automatic and mandatory for every transition.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Audit_Trail",
+        "fields": {
+          "work_item_id": "SF-{{persisted_work_item.fields.work_item_id}}",
+          "previous_state": "{{ifempty(inbound_payload.work_item.current_state, 'NONE')}}",
+          "new_state": "{{validated_transition.final_target_state}}",
+          "triggered_by": "{{if(inbound_payload.command.is_command, if(inbound_payload.person.role = 'SYSTEM', 'system', 'user'), if(ifempty(triage_result.fallback_used, false), 'system', 'ai'))}}",
+          "actor_id": "{{ifempty(inbound_payload.person.id, executionId)}}",
+          "transition_timestamp": "{{now}}",
+          "notes": "{{validated_transition.transition_reason}}{{if(confidence_gate.needs_review, ' [NEEDS_REVIEW: confidence=' + confidence_gate.confidence_score + ']', '')}}{{if(ifempty(triage_result.fallback_used, false), ' [AI_FALLBACK_USED]', '')}}"
+        }
+      },
+      "output": "audit_entry",
+      "error_handler": {
+        "type": "ignore",
+        "note": "Audit trail write is important but non-blocking. Log failure but do not halt execution."
+      }
+    },
+    {
+      "id": "11c",
+      "name": "Hardened Contractor Assignment",
+      "type": "transformer",
+      "description": "Deterministic contractor/engineer assignment. Filters by: skill match, ACTIVE status, emergency availability, postcode coverage. Sorts by: rating (desc), response time (asc), open jobs (asc), ID (tiebreaker). No randomness. If no match: escalate to supervisor with full logging.",
+      "config": {
+        "trigger_condition": "{{validated_transition.final_target_state = 'ASSESSMENT' AND confidence_gate.suppress_auto_assign != true}}",
+        "skip_if": "{{confidence_gate.suppress_auto_assign}}",
+        "mappings": {
+          "assignment_filters": {
+            "discipline": "{{validated_transition.discipline}}",
+            "urgency": "{{validated_transition.urgency}}",
+            "site_postcode": "{{ifempty(site_lookup[0].fields.postcode, '')}}",
+            "require_emergency": "{{if(validated_transition.urgency = 'EMERGENCY', true, false)}}"
+          },
+          "assignment_sort": {
+            "primary": "rating_desc",
+            "secondary": "average_response_hours_asc",
+            "tertiary": "current_open_jobs_asc",
+            "tiebreaker": "contractor_id_asc"
+          },
+          "on_no_match": {
+            "action": "ESCALATE",
+            "set_needs_review": true,
+            "alert_severity": "HIGH",
+            "log_reason": true
+          }
+        },
+        "side_effects": {
+          "log_assignment": {
+            "level": "INFO",
+            "message": "Contractor assignment evaluation",
+            "job_id": "SF-{{persisted_work_item.fields.work_item_id}}",
+            "discipline": "{{validated_transition.discipline}}",
+            "urgency": "{{validated_transition.urgency}}"
+          }
+        }
+      },
+      "output": "assignment_result"
     },
     {
       "id": 12,
@@ -1124,13 +1287,18 @@
     { "from": 2, "to": 3 },
     { "from": 3, "to": 4 },
     { "from": 4, "to": [5, 6] },
-    { "from": 5, "to": 7 },
+    { "from": 5, "to": "5c", "note": "LLM success → confidence gate" },
+    { "from": "5b", "to": "5c", "note": "LLM failure → fallback → confidence gate" },
+    { "from": "5c", "to": "5d", "note": "Confidence gate → media fallback check" },
+    { "from": "5d", "to": 7, "note": "Media fallback → state transition validator" },
     { "from": 6, "to": 7 },
     { "from": 7, "to": 8 },
     { "from": 8, "to": [9, 13] },
     { "from": 9, "to": 10 },
     { "from": 10, "to": 11 },
-    { "from": 11, "to": 12 },
+    { "from": 11, "to": "11b", "note": "Interaction log → audit trail" },
+    { "from": "11b", "to": "11c", "note": "Audit trail → contractor assignment" },
+    { "from": "11c", "to": 12 },
     { "from": 12, "to": [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] }
   ],
   "env_vars": [

@@ -1,0 +1,172 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblAuditTrail",
+  "name": "Audit_Trail",
+  "description": "Immutable audit log recording every state transition in the system. Each row captures who/what triggered the transition, the before/after states, and a timestamp. Used for compliance, debugging, and analytics.",
+  "record_count_estimate": "High volume - multiple entries per work item lifecycle",
+  "primary_field": "audit_id",
+  "fields": [
+    {
+      "field_id": "fldATAutoId",
+      "name": "audit_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each audit entry"
+    },
+    {
+      "field_id": "fldATWorkItemId",
+      "name": "work_item_id",
+      "type": "singleLineText",
+      "description": "Reference to the work item (SF-{id}) whose state changed"
+    },
+    {
+      "field_id": "fldATPreviousState",
+      "name": "previous_state",
+      "type": "singleSelect",
+      "description": "The state the work item was in before this transition",
+      "options": {
+        "choices": [
+          { "name": "NONE", "color": "grayLight2" },
+          { "name": "INTAKE", "color": "blueLight2" },
+          { "name": "CLARIFICATION", "color": "cyanLight2" },
+          { "name": "ASSESSMENT", "color": "tealLight2" },
+          { "name": "ASSIGNED", "color": "greenLight2" },
+          { "name": "ACCEPTED", "color": "greenBright" },
+          { "name": "IN_PROGRESS", "color": "yellowLight2" },
+          { "name": "VERIFICATION", "color": "orangeLight2" },
+          { "name": "PAYMENT_PENDING", "color": "redLight2" },
+          { "name": "CLOSED", "color": "grayDark1" },
+          { "name": "ESCALATED", "color": "redBright" },
+          { "name": "ON_HOLD", "color": "purpleLight2" },
+          { "name": "CANCELLED", "color": "grayDark1" },
+          { "name": "REOPENED", "color": "pinkLight2" },
+          { "name": "ESCALATED_L1", "color": "orangeBright" },
+          { "name": "ESCALATED_L2", "color": "redLight2" },
+          { "name": "ESCALATED_L3", "color": "redBright" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldATNewState",
+      "name": "new_state",
+      "type": "singleSelect",
+      "description": "The state the work item transitioned to",
+      "options": {
+        "choices": [
+          { "name": "INTAKE", "color": "blueLight2" },
+          { "name": "CLARIFICATION", "color": "cyanLight2" },
+          { "name": "ASSESSMENT", "color": "tealLight2" },
+          { "name": "ASSIGNED", "color": "greenLight2" },
+          { "name": "ACCEPTED", "color": "greenBright" },
+          { "name": "IN_PROGRESS", "color": "yellowLight2" },
+          { "name": "VERIFICATION", "color": "orangeLight2" },
+          { "name": "PAYMENT_PENDING", "color": "redLight2" },
+          { "name": "CLOSED", "color": "grayDark1" },
+          { "name": "ESCALATED", "color": "redBright" },
+          { "name": "ON_HOLD", "color": "purpleLight2" },
+          { "name": "CANCELLED", "color": "grayDark1" },
+          { "name": "REOPENED", "color": "pinkLight2" },
+          { "name": "ESCALATED_L1", "color": "orangeBright" },
+          { "name": "ESCALATED_L2", "color": "redLight2" },
+          { "name": "ESCALATED_L3", "color": "redBright" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldATTriggeredBy",
+      "name": "triggered_by",
+      "type": "singleSelect",
+      "description": "What initiated this transition: ai (LLM triage), system (SLA monitor, auto-transition), or user (manual command)",
+      "options": {
+        "choices": [
+          { "name": "ai", "color": "purpleLight2" },
+          { "name": "system", "color": "blueLight2" },
+          { "name": "user", "color": "greenLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldATActorId",
+      "name": "actor_id",
+      "type": "singleLineText",
+      "description": "Identifier of the actor: Make.com execution ID, person record ID, or 'system'"
+    },
+    {
+      "field_id": "fldATTimestamp",
+      "name": "transition_timestamp",
+      "type": "dateTime",
+      "description": "Exact UTC timestamp of the state transition",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "UTC"
+      }
+    },
+    {
+      "field_id": "fldATNotes",
+      "name": "notes",
+      "type": "multilineText",
+      "description": "Human-readable context: confidence scores, escalation reasons, command details, fallback activation"
+    }
+  ],
+  "views": [
+    {
+      "name": "All Transitions",
+      "type": "grid",
+      "description": "Complete audit log sorted by most recent first",
+      "fields": "all",
+      "sort": [
+        { "field": "transition_timestamp", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "By Work Item",
+      "type": "grid",
+      "description": "Grouped by work item to see full lifecycle",
+      "group": [
+        { "field": "work_item_id", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "transition_timestamp", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Escalations Only",
+      "type": "grid",
+      "description": "Filtered to show only escalation transitions",
+      "filter": {
+        "conjunction": "or",
+        "conditions": [
+          { "field": "new_state", "operator": "isEqual", "value": "ESCALATED" },
+          { "field": "new_state", "operator": "isEqual", "value": "ESCALATED_L1" },
+          { "field": "new_state", "operator": "isEqual", "value": "ESCALATED_L2" },
+          { "field": "new_state", "operator": "isEqual", "value": "ESCALATED_L3" }
+        ]
+      },
+      "sort": [
+        { "field": "transition_timestamp", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "AI Triggered",
+      "type": "grid",
+      "description": "Transitions triggered by AI classification",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "triggered_by", "operator": "isEqual", "value": "ai" }
+        ]
+      },
+      "sort": [
+        { "field": "transition_timestamp", "direction": "desc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "references": ["Work_Items"]
+  },
+  "field_count": 7,
+  "formula_count": 0,
+  "link_count": 0
+}

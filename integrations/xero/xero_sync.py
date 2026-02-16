@@ -33,24 +33,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 from xero_client import XeroApiError, XeroClient, XeroTokenError
 
 
-# ─── Structured Logging ─────────────────────────────────────────────────────
+# ─── Centralised Structured Logging (via lib.logger) ───────────────────────
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+from lib.logger import get_logger as _get_safeflow_logger  # noqa: E402
 
 logger = logging.getLogger("safeflow.xero.sync")
-
-if not logger.handlers:
-    handler = logging.StreamHandler()
-    handler.setFormatter(
-        logging.Formatter(
-            json.dumps({
-                "timestamp": "%(asctime)s",
-                "level": "%(levelname)s",
-                "logger": "%(name)s",
-                "message": "%(message)s",
-            })
-        )
-    )
-    logger.addHandler(handler)
-    logger.setLevel(os.environ.get("LOG_LEVEL", "INFO"))
+_sf_log = _get_safeflow_logger("xero.sync")
 
 
 # ─── Airtable Client ────────────────────────────────────────────────────────

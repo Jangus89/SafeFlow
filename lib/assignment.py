@@ -114,6 +114,12 @@ def find_best_contractor(
                     rejection_reasons.append(f"{name} (#{cid}): postcode {site_postcode} not in coverage {coverage}")
                     continue
 
+        # Filter 5: Compliance — block contractors with expired certifications
+        compliance = c.get("compliance_status", "").upper()
+        if compliance == "EXPIRED":
+            rejection_reasons.append(f"{name} (#{cid}): compliance_status=EXPIRED")
+            continue
+
         candidates.append(c)
 
     log.info(

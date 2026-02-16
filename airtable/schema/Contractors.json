@@ -231,6 +231,41 @@
       "name": "notes",
       "type": "multilineText",
       "description": "Internal notes about the contractor, including any performance issues or special arrangements"
+    },
+    {
+      "field_id": "fldConComplianceStatus",
+      "name": "compliance_status",
+      "type": "singleSelect",
+      "description": "Computed compliance status based on certification expiry dates. Updated daily by Scenario F.",
+      "options": {
+        "choices": [
+          { "name": "COMPLIANT", "color": "greenBright" },
+          { "name": "EXPIRING_SOON", "color": "yellowBright" },
+          { "name": "EXPIRED", "color": "redBright" },
+          { "name": "NOT_VERIFIED", "color": "grayLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldConNextExpiryDate",
+      "name": "next_expiry_date",
+      "type": "date",
+      "description": "Earliest expiry date across all certifications (gas_safe_expiry, niceic_expiry). Updated daily by Scenario F.",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" }
+      }
+    },
+    {
+      "field_id": "fldConComplianceDocs",
+      "name": "compliance_documents",
+      "type": "multipleAttachments",
+      "description": "Uploaded certification documents (Gas Safe cards, NICEIC certificates, insurance documents). Future: AI vision extraction of expiry dates."
+    },
+    {
+      "field_id": "fldConComplianceNotes",
+      "name": "compliance_notes",
+      "type": "multilineText",
+      "description": "Notes about compliance status, renewal reminders, or exemptions"
     }
   ],
   "views": [
@@ -289,12 +324,33 @@
       "sort": [
         { "field": "average_response_hours", "direction": "asc" }
       ]
+    },
+    {
+      "name": "Compliance Expiring",
+      "type": "grid",
+      "description": "Active contractors with EXPIRING_SOON or EXPIRED compliance status, sorted by nearest expiry date",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "status", "operator": "isEqual", "value": "ACTIVE" },
+          {
+            "conjunction": "or",
+            "conditions": [
+              { "field": "compliance_status", "operator": "isEqual", "value": "EXPIRING_SOON" },
+              { "field": "compliance_status", "operator": "isEqual", "value": "EXPIRED" }
+            ]
+          }
+        ]
+      },
+      "sort": [
+        { "field": "next_expiry_date", "direction": "asc" }
+      ]
     }
   ],
   "relationships": {
     "has_many": ["Work_Items", "Quotes", "Payments"]
   },
-  "field_count": 25,
+  "field_count": 29,
   "formula_count": 0,
   "rollup_count": 2,
   "link_count": 0

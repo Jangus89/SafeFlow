@@ -41,7 +41,7 @@ flowchart TB
     end
 
     subgraph "Data & Intelligence"
-        AT[(Airtable<br/>9 Tables)]
+        AT[(Airtable<br/>10 Tables)]
         CL[Claude API<br/>AI Engine]
         XR[Xero<br/>Accounting]
     end
@@ -80,7 +80,7 @@ flowchart TB
 | Component | Technology | Version | Purpose |
 |---|---|---|---|
 | **Messaging** | 360dialog WhatsApp Business API | v2.x | Tenant communication channel |
-| **Automation** | Make.com (formerly Integromat) | — | Workflow orchestration (5 scenarios) |
+| **Automation** | Make.com (formerly Integromat) | — | Workflow orchestration (6 scenarios) |
 | **Database** | Airtable | — | Operational data store (9 tables) |
 | **AI Engine** | Anthropic Claude API | claude-sonnet-4-20250514 | NLU, triage, classification, summarisation |
 | **Accounting** | Xero API | v2.0 | Invoice and payment processing |
@@ -401,7 +401,7 @@ stateDiagram-v2
 
 ---
 
-## Airtable Schema (9 Tables)
+## Airtable Schema (10 Tables)
 
 | Table | Purpose | Key Fields |
 |---|---|---|
@@ -409,7 +409,7 @@ stateDiagram-v2
 | **Properties** | Property register | Address, Postcode, Manager, SLA Tier |
 | **Jobs** | Core maintenance job tracker | Status, Category, Urgency, SLA Deadline, Linked Tenant, Linked Contractor |
 | **Messages** | Full message audit log | Direction, Content, Media URLs, Linked Job, Timestamp |
-| **Contractors** | Contractor directory | Name, Trades, Availability, Rating, Contact |
+| **Contractors** | Contractor directory | Name, Trades, Availability, Rating, Contact, ComplianceStatus, NextExpiryDate |
 | **Invoices** | Invoice tracking | Amount, Status, Xero ID, Linked Job, Linked Contractor |
 | **SLA Rules** | SLA configuration by category/urgency | Category, Urgency, Response Time, Resolution Time |
 | **Escalations** | Escalation records | Reason, Linked Job, Assigned Manager, Resolution |
@@ -513,6 +513,32 @@ This reverts Make.com scenarios to the previous blueprint version and restores A
 - **Health check endpoint** — `scripts/health-check.sh` validates all integrations
 - **Daily digest emails** — automated manager reports via Scenario 4
 - **SLA breach alerts** — immediate escalation notifications when deadlines are missed
+
+---
+
+## Contractor Compliance Expiry Guard
+
+SafeFlow enforces contractor certification compliance at assignment time and runs daily proactive checks.
+
+### How it works
+
+1. **Daily sweep (Scenario F)** runs at 07:00 UK time. For every ACTIVE contractor, it evaluates Gas Safe and NICEIC expiry dates and writes `compliance_status` + `next_expiry_date` back to the Contractors table.
+2. **Assignment filter** — `lib/assignment.py` (Filter 5) rejects any contractor with `compliance_status = EXPIRED`. EXPIRING_SOON contractors remain assignable.
+3. **Auto-alerts** — EXPIRED contractors trigger a HIGH severity alert to property managers; EXPIRING_SOON contractors trigger a MEDIUM severity warning. Both are delivered via Scenario C (outbound notifications).
+4. **Airtable view** — The "Compliance Expiring" view on the Contractors table surfaces all at-risk contractors sorted by nearest expiry date.
+
+### Compliance statuses
+
+| Status | Meaning |
+|---|---|
+| **COMPLIANT** | All certs valid, earliest expiry > 30 days away |
+| **EXPIRING_SOON** | At least one cert expires within 30 days |
+| **EXPIRED** | At least one cert is past its expiry date — **blocked from assignment** |
+| **NOT_VERIFIED** | No expiry dates recorded |
+
+### Future: Document upload via WhatsApp
+
+A vision prompt (`llm-prompts/compliance/expiry-extract-vision.md`) is prepared for extracting expiry dates from photos of certification documents sent via WhatsApp. This is not yet integrated into any scenario.
 
 ---
 

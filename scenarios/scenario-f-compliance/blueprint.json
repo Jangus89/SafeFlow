@@ -1,0 +1,215 @@
+{
+  "name": "Scenario F - Compliance Expiry Guard",
+  "version": "1.0.0",
+  "description": "Daily scheduled scenario that checks all ACTIVE contractors for certification expiry. Updates compliance_status and next_expiry_date fields on each contractor record, and sends alerts for EXPIRING_SOON and EXPIRED contractors to property managers via Scenario C.",
+  "scheduling": {
+    "type": "scheduled",
+    "interval": "daily",
+    "time": "07:00",
+    "timezone": "Europe/London",
+    "description": "Runs every morning at 07:00 UK time to check contractor compliance before the working day begins."
+  },
+  "modules": [
+    {
+      "id": 1,
+      "name": "Trigger - Daily Schedule",
+      "type": "scheduler",
+      "description": "Daily trigger at 07:00 Europe/London. Initiates the compliance check sweep.",
+      "config": {
+        "schedule": {
+          "type": "daily",
+          "time": "07:00",
+          "timezone": "Europe/London"
+        }
+      },
+      "output": "trigger"
+    },
+    {
+      "id": 2,
+      "name": "Load Active Contractors",
+      "type": "airtable_search",
+      "description": "Fetch all ACTIVE contractors with their certification expiry fields.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Contractors",
+        "filter_formula": "{status} = 'ACTIVE'",
+        "fields": [
+          "contractor_id",
+          "company_name",
+          "primary_contact_name",
+          "email",
+          "whatsapp_number",
+          "trade_disciplines",
+          "gas_safe_number",
+          "gas_safe_expiry",
+          "niceic_number",
+          "niceic_expiry",
+          "other_certifications",
+          "compliance_status",
+          "next_expiry_date",
+          "compliance_notes",
+          "status"
+        ],
+        "max_records": 500,
+        "sort": [
+          { "field": "company_name", "direction": "asc" }
+        ]
+      },
+      "output": "active_contractors",
+      "error_handler": {
+        "type": "route",
+        "target_module": 99,
+        "note": "If Airtable lookup fails, route to error handler"
+      }
+    },
+    {
+      "id": 3,
+      "name": "Iterator - Per Contractor",
+      "type": "iterator",
+      "description": "Iterate over each active contractor to evaluate compliance individually.",
+      "config": {
+        "source": "{{active_contractors}}"
+      },
+      "output": "contractor"
+    },
+    {
+      "id": 4,
+      "name": "Evaluate Compliance Status",
+      "type": "transformer",
+      "description": "For each contractor, evaluate all certification expiry dates against today. Determine compliance_status (COMPLIANT, EXPIRING_SOON, EXPIRED, NOT_VERIFIED) and the next_expiry_date.",
+      "config": {
+        "mappings": {
+          "gas_safe_expired": "{{if(contractor.fields.gas_safe_expiry != '' AND contractor.fields.gas_safe_expiry < formatDate(now, 'YYYY-MM-DD'), true, false)}}",
+          "gas_safe_expiring_soon": "{{if(contractor.fields.gas_safe_expiry != '' AND contractor.fields.gas_safe_expiry >= formatDate(now, 'YYYY-MM-DD') AND contractor.fields.gas_safe_expiry <= formatDate(addDays(now, 30), 'YYYY-MM-DD'), true, false)}}",
+          "niceic_expired": "{{if(contractor.fields.niceic_expiry != '' AND contractor.fields.niceic_expiry < formatDate(now, 'YYYY-MM-DD'), true, false)}}",
+          "niceic_expiring_soon": "{{if(contractor.fields.niceic_expiry != '' AND contractor.fields.niceic_expiry >= formatDate(now, 'YYYY-MM-DD') AND contractor.fields.niceic_expiry <= formatDate(addDays(now, 30), 'YYYY-MM-DD'), true, false)}}",
+          "has_any_expiry": "{{if(contractor.fields.gas_safe_expiry != '' OR contractor.fields.niceic_expiry != '', true, false)}}",
+          "any_expired": "{{if(gas_safe_expired OR niceic_expired, true, false)}}",
+          "any_expiring_soon": "{{if(gas_safe_expiring_soon OR niceic_expiring_soon, true, false)}}",
+          "compliance_status": "{{if(has_any_expiry = false, 'NOT_VERIFIED', if(any_expired, 'EXPIRED', if(any_expiring_soon, 'EXPIRING_SOON', 'COMPLIANT')))}}",
+          "next_expiry_date": "{{if(has_any_expiry = false, '', if(contractor.fields.gas_safe_expiry != '' AND contractor.fields.niceic_expiry != '', if(contractor.fields.gas_safe_expiry < contractor.fields.niceic_expiry, contractor.fields.gas_safe_expiry, contractor.fields.niceic_expiry), ifempty(contractor.fields.gas_safe_expiry, contractor.fields.niceic_expiry)))}}",
+          "status_changed": "{{if(compliance_status != ifempty(contractor.fields.compliance_status, ''), true, false)}}",
+          "expired_certs_text": "{{if(gas_safe_expired, 'Gas Safe (expired ' + contractor.fields.gas_safe_expiry + ')', '')}}{{if(gas_safe_expired AND niceic_expired, ', ', '')}}{{if(niceic_expired, 'NICEIC (expired ' + contractor.fields.niceic_expiry + ')', '')}}",
+          "expiring_certs_text": "{{if(gas_safe_expiring_soon, 'Gas Safe (expires ' + contractor.fields.gas_safe_expiry + ')', '')}}{{if(gas_safe_expiring_soon AND niceic_expiring_soon, ', ', '')}}{{if(niceic_expiring_soon, 'NICEIC (expires ' + contractor.fields.niceic_expiry + ')', '')}}"
+        }
+      },
+      "output": "compliance_eval"
+    },
+    {
+      "id": 5,
+      "name": "Update Contractor Compliance Fields",
+      "type": "airtable_update",
+      "description": "Persist the computed compliance_status and next_expiry_date back to the Contractors table.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Contractors",
+        "record_id": "{{contractor.id}}",
+        "fields": {
+          "compliance_status": "{{compliance_eval.compliance_status}}",
+          "next_expiry_date": "{{if(compliance_eval.next_expiry_date != '', compliance_eval.next_expiry_date, '')}}"
+        }
+      },
+      "output": "updated_contractor",
+      "error_handler": {
+        "type": "ignore",
+        "note": "Log but continue if individual contractor update fails"
+      }
+    },
+    {
+      "id": 6,
+      "name": "Filter - Needs Alert",
+      "type": "filter",
+      "description": "Only continue to alerting for contractors that are EXPIRED or EXPIRING_SOON.",
+      "config": {
+        "condition": "{{compliance_eval.compliance_status = 'EXPIRED' OR compliance_eval.compliance_status = 'EXPIRING_SOON'}}"
+      }
+    },
+    {
+      "id": 7,
+      "name": "Send Compliance Alert via Scenario C",
+      "type": "webhook_call",
+      "description": "Send a compliance alert to the property manager(s) via Scenario C outbound notifications. EXPIRED alerts are HIGH severity; EXPIRING_SOON alerts are MEDIUM severity.",
+      "config": {
+        "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "X-Source-Scenario": "scenario-f-compliance",
+          "X-Execution-Id": "{{executionId}}"
+        },
+        "body": {
+          "recipient": {
+            "person_id": "{{COMPLIANCE_ALERT_RECIPIENT_ID}}",
+            "phone": "",
+            "name": ""
+          },
+          "message_type": "text",
+          "message": {
+            "text": "{{if(compliance_eval.compliance_status = 'EXPIRED', '🚫 COMPLIANCE ALERT: ' + contractor.fields.company_name + ' has EXPIRED certifications: ' + compliance_eval.expired_certs_text + '. This contractor is now BLOCKED from new job assignments. Please request updated documentation immediately.', '⚠️ COMPLIANCE WARNING: ' + contractor.fields.company_name + ' has certifications expiring within 30 days: ' + compliance_eval.expiring_certs_text + '. Please request renewed documents before expiry to avoid assignment blocks.')}}"
+          },
+          "notification_type": "COMPLIANCE_ALERT",
+          "source": "COMPLIANCE_CHECK",
+          "metadata": {
+            "contractor_id": "{{contractor.fields.contractor_id}}",
+            "company_name": "{{contractor.fields.company_name}}",
+            "compliance_status": "{{compliance_eval.compliance_status}}",
+            "next_expiry_date": "{{compliance_eval.next_expiry_date}}",
+            "severity": "{{if(compliance_eval.compliance_status = 'EXPIRED', 'HIGH', 'MEDIUM')}}"
+          }
+        }
+      },
+      "output": "alert_sent",
+      "error_handler": {
+        "type": "ignore",
+        "note": "Alert delivery is important but should not block the compliance sweep"
+      }
+    },
+    {
+      "id": 99,
+      "name": "Error Handler",
+      "type": "error_handler",
+      "description": "Route errors to Scenario E (DLQ) for investigation.",
+      "config": {
+        "actions": [
+          {
+            "type": "webhook_call",
+            "url": "{{MAKE_WEBHOOK_URL_SCENARIO_E}}",
+            "method": "POST",
+            "body": {
+              "scenario": "SCENARIO_F_COMPLIANCE",
+              "error_type": "{{error.type}}",
+              "error_message": "{{error.message}}",
+              "module_id": "{{error.module_id}}",
+              "module_name": "{{error.module_name}}",
+              "severity": "MEDIUM",
+              "execution_id": "{{executionId}}",
+              "timestamp": "{{now}}",
+              "retry_eligible": true
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "connections": [
+    { "from": 1, "to": 2 },
+    { "from": 2, "to": 3 },
+    { "from": 3, "to": 4 },
+    { "from": 4, "to": 5 },
+    { "from": 5, "to": 6 },
+    { "from": 6, "to": 7 }
+  ],
+  "env_vars": [
+    "AIRTABLE_BASE_ID",
+    "AIRTABLE_API_KEY",
+    "MAKE_WEBHOOK_URL_SCENARIO_C",
+    "MAKE_WEBHOOK_URL_SCENARIO_E",
+    "COMPLIANCE_ALERT_RECIPIENT_ID"
+  ],
+  "operations_estimate": {
+    "per_run": 8,
+    "daily_average": 8,
+    "monthly_estimate": 240,
+    "notes": "Low operation count. Runs once daily. Operations scale with number of active contractors (one update + optional alert per contractor)."
+  }
+}

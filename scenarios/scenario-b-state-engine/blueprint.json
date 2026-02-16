@@ -616,7 +616,7 @@
       "id": "11c",
       "name": "Hardened Contractor Assignment",
       "type": "transformer",
-      "description": "Deterministic contractor/engineer assignment. Filters by: skill match, ACTIVE status, emergency availability, postcode coverage. Sorts by: rating (desc), response time (asc), open jobs (asc), ID (tiebreaker). No randomness. If no match: escalate to supervisor with full logging.",
+      "description": "Deterministic contractor/engineer assignment. Filters by: skill match, ACTIVE status, compliance_status != EXPIRED, emergency availability, postcode coverage. Sorts by: rating (desc), response time (asc), open jobs (asc), ID (tiebreaker). No randomness. If no match: escalate to supervisor with full logging.",
       "config": {
         "trigger_condition": "{{validated_transition.final_target_state = 'ASSESSMENT' AND confidence_gate.suppress_auto_assign != true}}",
         "skip_if": "{{confidence_gate.suppress_auto_assign}}",
@@ -625,7 +625,8 @@
             "discipline": "{{validated_transition.discipline}}",
             "urgency": "{{validated_transition.urgency}}",
             "site_postcode": "{{ifempty(site_lookup[0].fields.postcode, '')}}",
-            "require_emergency": "{{if(validated_transition.urgency = 'EMERGENCY', true, false)}}"
+            "require_emergency": "{{if(validated_transition.urgency = 'EMERGENCY', true, false)}}",
+            "exclude_compliance_expired": true
           },
           "assignment_sort": {
             "primary": "rating_desc",

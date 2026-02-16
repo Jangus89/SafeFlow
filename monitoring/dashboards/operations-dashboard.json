@@ -189,6 +189,90 @@
           "group_by": "day"
         },
         "position": {"row": 11, "col": 0, "width": 12, "height": 4}
+      },
+      {
+        "id": "xero_sync_status",
+        "title": "Xero Sync Status",
+        "type": "stat",
+        "description": "Count of payment records by Xero sync status (pending, synced, failed)",
+        "data_source": "airtable",
+        "query": {
+          "table": "Payments",
+          "filter": "{status} != ''",
+          "aggregation": "count",
+          "group_by": "xero_sync_status"
+        },
+        "colours": {
+          "PENDING": "#f39c12",
+          "SYNCED": "#2ecc71",
+          "FAILED": "#e74c3c"
+        },
+        "position": {"row": 15, "col": 0, "width": 3, "height": 3}
+      },
+      {
+        "id": "clarification_aging",
+        "title": "Clarification Queue Aging",
+        "type": "bar_chart",
+        "description": "Work items in CLARIFICATION state grouped by time in state",
+        "data_source": "airtable",
+        "query": {
+          "table": "Work_Items",
+          "filter": "{current_state} = 'CLARIFICATION'",
+          "aggregation": "count",
+          "buckets": [
+            {"label": "0-12h", "filter": "DATETIME_DIFF(NOW(), {state_started_at}, 'hours') <= 12"},
+            {"label": "12-24h", "filter": "AND(DATETIME_DIFF(NOW(), {state_started_at}, 'hours') > 12, DATETIME_DIFF(NOW(), {state_started_at}, 'hours') <= 24)"},
+            {"label": "24-48h", "filter": "AND(DATETIME_DIFF(NOW(), {state_started_at}, 'hours') > 24, DATETIME_DIFF(NOW(), {state_started_at}, 'hours') <= 48)"},
+            {"label": "48h+", "filter": "DATETIME_DIFF(NOW(), {state_started_at}, 'hours') > 48"}
+          ]
+        },
+        "colours": {
+          "0-12h": "#2ecc71",
+          "12-24h": "#f39c12",
+          "24-48h": "#e67e22",
+          "48h+": "#e74c3c"
+        },
+        "position": {"row": 15, "col": 3, "width": 3, "height": 3}
+      },
+      {
+        "id": "contractor_response_rate",
+        "title": "Contractor Quote Response Rate",
+        "type": "gauge",
+        "description": "Percentage of RFQs that received a contractor quote within 48 hours",
+        "data_source": "airtable",
+        "query": {
+          "table": "Quotes",
+          "filter": "{created_at} >= DATEADD(NOW(), -30, 'days')",
+          "formula": "COUNTIF(AND({status} != 'REQUESTED', DATETIME_DIFF({submitted_at}, {created_at}, 'hours') <= 48)) / COUNT({quote_id}) * 100"
+        },
+        "thresholds": {
+          "good": 80,
+          "warning": 60,
+          "critical": 40
+        },
+        "target": 85,
+        "unit": "%",
+        "position": {"row": 15, "col": 6, "width": 3, "height": 3}
+      },
+      {
+        "id": "escalation_heatmap",
+        "title": "Escalation Heatmap",
+        "type": "heatmap",
+        "description": "Escalation events by hour of day and day of week over the last 30 days",
+        "data_source": "airtable",
+        "query": {
+          "table": "Work_Items",
+          "filter": "AND({escalation_level} >= 1, {state_started_at} >= DATEADD(NOW(), -30, 'days'))",
+          "x_axis": "HOUR({state_started_at})",
+          "y_axis": "WEEKDAY({state_started_at})",
+          "aggregation": "count"
+        },
+        "colour_scale": {
+          "min": "#eef7ee",
+          "mid": "#f39c12",
+          "max": "#e74c3c"
+        },
+        "position": {"row": 15, "col": 9, "width": 3, "height": 3}
       }
     ]
   }

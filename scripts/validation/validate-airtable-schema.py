@@ -9,14 +9,17 @@ Checks:
     - SLA definitions are complete
     - Formula fields have formula property
     - Select fields have choices defined
-    - Naming conventions followed
+    - Naming conventions followed (snake_case fields, PascalCase tables)
 
 Usage:
     python scripts/validation/validate-airtable-schema.py
     python scripts/validation/validate-airtable-schema.py --schema path/to/schema.json
+    python scripts/validation/validate-airtable-schema.py --output-json
+    python scripts/validation/validate-airtable-schema.py --strict
 """
 
 import json
+import re
 import sys
 import argparse
 from pathlib import Path
@@ -44,15 +47,22 @@ REQUIRED_STATES = [
     "CANCELLED", "REOPENED",
 ]
 
+# Naming convention patterns
+# Table names: PascalCase or Title_Case (words separated by underscores, each capitalised)
+TABLE_NAME_PATTERN = re.compile(r"^[A-Z][a-z]+(_[A-Z][a-z]+)*$")
+# Field names: snake_case (lower with underscores) — common Airtable convention
+FIELD_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
+
 
 class SchemaValidator:
     """Validates SafeFlow Airtable schema definition."""
 
-    def __init__(self, schema_path: str) -> None:
+    def __init__(self, schema_path: str, *, strict: bool = False) -> None:
         self.schema_path = Path(schema_path)
         self.errors: list[str] = []
         self.warnings: list[str] = []
         self.schema: dict[str, Any] = {}
+        self.strict = strict
 
     def load_schema(self) -> bool:
         """Load and parse the schema JSON file."""
@@ -89,6 +99,38 @@ class SchemaValidator:
             if name in seen:
                 self.errors.append(f"Duplicate table name: {name}")
             seen.add(name)
+
+    def validate_naming_conventions(self) -> None:
+        """Validate table and field naming conventions.
+
+        Tables should follow Title_Case (e.g. Work_Items, Sites).
+        Fields should follow snake_case (e.g. current_state, site_id).
+        In strict mode, violations are errors; otherwise they are warnings.
+        """
+        tables = self.schema.get("tables", [])
+        for table in tables:
+            table_name = table.get("name", "")
+            if table_name and not TABLE_NAME_PATTERN.match(table_name):
+                msg = (
+                    f"Table name '{table_name}' does not follow Title_Case "
+                    f"convention (e.g. Work_Items)"
+                )
+                if self.strict:
+                    self.errors.append(msg)
+                else:
+                    self.warnings.append(msg)
+
+            for field in table.get("fields", []):
+                field_name = field.get("name", "")
+                if field_name and not FIELD_NAME_PATTERN.match(field_name):
+                    msg = (
+                        f"Table {table_name}.{field_name} does not follow "
+                        f"snake_case convention"
+                    )
+                    if self.strict:
+                        self.errors.append(msg)
+                    else:
+                        self.warnings.append(msg)
 
     def validate_fields(self) -> None:
         """Validate field definitions for each table."""
@@ -274,18 +316,29 @@ class SchemaValidator:
             )
 
     def run(self) -> bool:
-        """Run all validations and return success status."""
+        """Run all validations and return success status.
+
+        In strict mode, warnings are promoted to errors so any issue
+        causes a non-zero exit.
+        """
         if not self.load_schema():
             return False
 
         self.validate_structure()
         self.validate_tables()
         self.validate_fields()
+        self.validate_naming_conventions()
         self.validate_relationships()
         self.validate_state_machine()
         self.validate_sla_definitions()
         self.validate_views()
         self.validate_work_items_fields()
+
+        if self.strict and self.warnings:
+            # Promote all warnings to errors in strict mode
+            for warn in self.warnings:
+                self.errors.append(f"[strict] {warn}")
+            self.warnings = []
 
         return len(self.errors) == 0
 
@@ -319,6 +372,24 @@ class SchemaValidator:
         lines.append(f"  {len(self.errors)} error(s), {len(self.warnings)} warning(s)")
         return "\n".join(lines)
 
+    def to_json(self) -> dict[str, Any]:
+        """Return validation results as a JSON-serializable dict."""
+        tables = self.schema.get("tables", [])
+        total_fields = sum(len(t.get("fields", [])) for t in tables)
+        return {
+            "schema_path": str(self.schema_path),
+            "strict": self.strict,
+            "passed": len(self.errors) == 0,
+            "error_count": len(self.errors),
+            "warning_count": len(self.warnings),
+            "errors": self.errors,
+            "warnings": self.warnings,
+            "summary": {
+                "table_count": len(tables),
+                "total_fields": total_fields,
+            },
+        }
+
 
 def main() -> None:
     """Entry point."""
@@ -330,11 +401,24 @@ def main() -> None:
         default="airtable/schema/schema.json",
         help="Path to schema.json file (default: airtable/schema/schema.json)",
     )
+    parser.add_argument(
+        "--output-json", action="store_true",
+        help="Output results as machine-readable JSON instead of human-readable text",
+    )
+    parser.add_argument(
+        "--strict", action="store_true",
+        help="Treat warnings as errors (naming conventions, missing views, etc.)",
+    )
     args = parser.parse_args()
 
-    validator = SchemaValidator(args.schema)
+    validator = SchemaValidator(args.schema, strict=args.strict)
     success = validator.run()
-    print(validator.report())
+
+    if args.output_json:
+        print(json.dumps(validator.to_json(), indent=2))
+    else:
+        print(validator.report())
+
     sys.exit(0 if success else 1)
 
 

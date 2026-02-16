@@ -49,51 +49,87 @@ const createdRecordIds = {
 
 // ─── Helper Functions ───────────────────────────────────────────────────────────
 
+/**
+ * Retries an async function on transient errors (network failures, 429, 5xx).
+ * Uses exponential backoff, and respects Retry-After headers for 429 responses.
+ *
+ * @param {Function} fn          - Async function to execute
+ * @param {number}   maxRetries  - Maximum number of attempts (default 3)
+ * @param {number}   baseDelayMs - Base delay in ms for exponential backoff (default 1000)
+ * @returns {*}                  - Return value of fn()
+ */
+async function withRetry(fn, maxRetries = 3, baseDelayMs = 1000) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const status = err.response?.status;
+      const retryable = !status || status === 429 || status >= 500;
+      if (!retryable || attempt === maxRetries) throw err;
+      const delay = status === 429
+        ? parseInt(err.response.headers?.['retry-after'] || '5', 10) * 1000
+        : baseDelayMs * Math.pow(2, attempt - 1);
+      console.warn(`  Retry ${attempt}/${maxRetries} after ${delay}ms (status: ${status})`);
+      await sleep(delay);
+    }
+  }
+}
+
 async function createAirtableRecord(tableName, fields) {
-  const response = await axios.post(
-    `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}`,
-    { fields },
-    { headers: AIRTABLE_HEADERS }
-  );
-  return response.data;
+  return withRetry(async () => {
+    const response = await axios.post(
+      `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}`,
+      { fields },
+      { headers: AIRTABLE_HEADERS }
+    );
+    return response.data;
+  });
 }
 
 async function getAirtableRecord(tableName, recordId) {
-  const response = await axios.get(
-    `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}/${recordId}`,
-    { headers: AIRTABLE_HEADERS }
-  );
-  return response.data;
+  return withRetry(async () => {
+    const response = await axios.get(
+      `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}/${recordId}`,
+      { headers: AIRTABLE_HEADERS }
+    );
+    return response.data;
+  });
 }
 
 async function findAirtableRecords(tableName, filterFormula, maxRecords = 10) {
-  const response = await axios.get(
-    `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}`,
-    {
-      headers: AIRTABLE_HEADERS,
-      params: {
-        filterByFormula: filterFormula,
-        maxRecords,
-      },
-    }
-  );
-  return response.data.records || [];
+  return withRetry(async () => {
+    const response = await axios.get(
+      `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}`,
+      {
+        headers: AIRTABLE_HEADERS,
+        params: {
+          filterByFormula: filterFormula,
+          maxRecords,
+        },
+      }
+    );
+    return response.data.records || [];
+  });
 }
 
 async function updateAirtableRecord(tableName, recordId, fields) {
-  const response = await axios.patch(
-    `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}/${recordId}`,
-    { fields },
-    { headers: AIRTABLE_HEADERS }
-  );
-  return response.data;
+  return withRetry(async () => {
+    const response = await axios.patch(
+      `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}/${recordId}`,
+      { fields },
+      { headers: AIRTABLE_HEADERS }
+    );
+    return response.data;
+  });
 }
 
 async function deleteAirtableRecord(tableName, recordId) {
-  await axios.delete(
-    `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}/${recordId}`,
-    { headers: AIRTABLE_HEADERS }
-  );
+  return withRetry(async () => {
+    await axios.delete(
+      `${AIRTABLE_BASE_URL}/${encodeURIComponent(tableName)}/${recordId}`,
+      { headers: AIRTABLE_HEADERS }
+    );
+  });
 }
 
 function sleep(ms) {

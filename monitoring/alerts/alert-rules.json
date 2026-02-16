@@ -164,6 +164,82 @@
         "schedule": "0 9 * * *",
         "channels": ["email"],
         "template": "daily_digest"
+      },
+      {
+        "id": "xero_sync_failure",
+        "name": "Xero Invoice Sync Failure",
+        "description": "One or more Xero invoice syncs have failed in the last hour",
+        "severity": "HIGH",
+        "condition": {
+          "metric": "xero_sync_error_count",
+          "threshold": 0,
+          "operator": ">",
+          "window": "1h"
+        },
+        "channels": ["slack", "email"],
+        "cooldown_minutes": 60,
+        "auto_resolve": true
+      },
+      {
+        "id": "clarification_timeout_high",
+        "name": "Clarification Queue Backlog",
+        "description": "More than 10 work items have been stuck in CLARIFICATION state for over 24 hours",
+        "severity": "MEDIUM",
+        "condition": {
+          "table": "Work_Items",
+          "filter": "AND({current_state} = 'CLARIFICATION', DATETIME_DIFF(NOW(), {state_started_at}, 'hours') > 24)",
+          "threshold": 10,
+          "operator": ">"
+        },
+        "channels": ["slack"],
+        "cooldown_minutes": 240,
+        "auto_resolve": true
+      },
+      {
+        "id": "llm_latency_high",
+        "name": "LLM API Latency Degraded",
+        "description": "Average LLM API response time exceeds 10 seconds",
+        "severity": "MEDIUM",
+        "condition": {
+          "metric": "llm_avg_latency_seconds",
+          "threshold": 10,
+          "operator": ">",
+          "window": "15m"
+        },
+        "channels": ["slack"],
+        "cooldown_minutes": 60,
+        "auto_resolve": true
+      },
+      {
+        "id": "duplicate_work_items",
+        "name": "Potential Duplicate Work Items",
+        "description": "More than 5 potential duplicate work items detected in the last hour",
+        "severity": "LOW",
+        "condition": {
+          "metric": "duplicate_detection_count",
+          "threshold": 5,
+          "operator": ">",
+          "window": "1h"
+        },
+        "channels": ["slack"],
+        "cooldown_minutes": 1440,
+        "auto_resolve": true
+      },
+      {
+        "id": "contractor_response_low",
+        "name": "Low Contractor Quote Response Rate",
+        "description": "Contractor quote response rate has dropped below 50% over the last 7 days",
+        "severity": "MEDIUM",
+        "condition": {
+          "metric": "contractor_quote_response_rate",
+          "threshold": 50,
+          "operator": "<",
+          "unit": "%",
+          "window": "7d"
+        },
+        "channels": ["slack", "email"],
+        "cooldown_minutes": 1440,
+        "auto_resolve": true
       }
     ]
   }

@@ -3,13 +3,16 @@
 
 Runs test cases against a specified prompt version using the Claude API,
 validates responses against expected values, and generates detailed
-accuracy metrics.
+accuracy metrics.  Includes retry with exponential backoff for API calls,
+configurable model selection, custom output directory, and a progress bar.
 
 Usage:
     python llm-prompts/evaluation/evaluate-prompt.py --prompt intake-triage --version v2.0.0
     python llm-prompts/evaluation/evaluate-prompt.py --prompt intake-triage --tags emergency --limit 10
     python llm-prompts/evaluation/evaluate-prompt.py --prompt intake-triage --dry-run
     python llm-prompts/evaluation/evaluate-prompt.py --prompt intake-triage --all --json
+    python llm-prompts/evaluation/evaluate-prompt.py --prompt intake-triage --model claude-sonnet-4-5-20250929
+    python llm-prompts/evaluation/evaluate-prompt.py --prompt intake-triage --output-dir results/
 """
 
 import argparse
@@ -21,6 +24,37 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
+MAX_RETRIES = 3
+PROGRESS_BAR_WIDTH = 30
+
+
+# ---------------------------------------------------------------------------
+# Progress bar helper
+# ---------------------------------------------------------------------------
+
+def progress_bar(current: int, total: int, *, width: int = PROGRESS_BAR_WIDTH) -> str:
+    """Return a text progress bar string like [========>       ] 45.0%."""
+    if total == 0:
+        return "[" + " " * width + "]   0.0%"
+    fraction = current / total
+    filled = int(width * fraction)
+    bar = "=" * filled
+    if filled < width:
+        bar += ">"
+        bar += " " * (width - filled - 1)
+    pct = round(fraction * 100, 1)
+    return f"[{bar}] {pct:5.1f}%"
+
+
+# ---------------------------------------------------------------------------
+# Core helpers
+# ---------------------------------------------------------------------------
 
 def load_prompt(prompt_name: str, version: str) -> str:
     """Load system prompt text from file."""
@@ -72,11 +106,11 @@ def filter_cases(
 def call_claude_api(
     system_prompt: str,
     message: str,
-    model: str = "claude-sonnet-4-5-20250929",
+    model: str = DEFAULT_MODEL,
     temperature: float = 0.2,
     max_tokens: int = 1500,
 ) -> dict[str, Any]:
-    """Call the Claude API and return parsed JSON response."""
+    """Call the Claude API with retry / exponential backoff and return parsed JSON response."""
     try:
         import anthropic
     except ImportError:
@@ -90,29 +124,42 @@ def call_claude_api(
 
     client = anthropic.Anthropic(api_key=api_key)
 
-    start_time = time.time()
-    response = client.messages.create(
-        model=model,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        system=system_prompt,
-        messages=[{"role": "user", "content": message}],
-    )
-    latency = time.time() - start_time
+    last_error: Exception | None = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            start_time = time.time()
+            response = client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system=system_prompt,
+                messages=[{"role": "user", "content": message}],
+            )
+            latency = time.time() - start_time
 
-    content = response.content[0].text
-    try:
-        parsed = json.loads(content)
-    except json.JSONDecodeError:
-        parsed = {"_raw": content, "_parse_error": True}
+            content = response.content[0].text
+            try:
+                parsed = json.loads(content)
+            except json.JSONDecodeError:
+                parsed = {"_raw": content, "_parse_error": True}
 
-    return {
-        "response": parsed,
-        "latency_seconds": round(latency, 3),
-        "input_tokens": response.usage.input_tokens,
-        "output_tokens": response.usage.output_tokens,
-        "model": model,
-    }
+            return {
+                "response": parsed,
+                "latency_seconds": round(latency, 3),
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+                "model": model,
+            }
+        except Exception as exc:
+            last_error = exc
+            if attempt < MAX_RETRIES:
+                backoff = 2 ** (attempt - 1)
+                print(f" (retry {attempt}/{MAX_RETRIES}, backoff {backoff}s)", end="")
+                time.sleep(backoff)
+
+    raise RuntimeError(
+        f"Claude API call failed after {MAX_RETRIES} retries: {last_error}"
+    ) from last_error
 
 
 def validate_response(
@@ -235,6 +282,7 @@ def run_evaluation(
     prompt_name: str,
     version: str,
     cases: list[dict[str, Any]],
+    model: str = DEFAULT_MODEL,
     dry_run: bool = False,
 ) -> dict[str, Any]:
     """Run evaluation against all test cases."""
@@ -243,6 +291,7 @@ def run_evaluation(
     results: dict[str, Any] = {
         "prompt": prompt_name,
         "version": version,
+        "model": model,
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "total_cases": len(cases),
         "passed": 0,
@@ -253,6 +302,8 @@ def run_evaluation(
         "case_results": [],
     }
 
+    eval_start = time.time()
+
     for i, case in enumerate(cases):
         case_id = case.get("id", f"case-{i}")
         category = case.get("category", "unknown")
@@ -261,14 +312,15 @@ def run_evaluation(
         expected = case.get("expected", {})
         rules = case.get("validation_rules", {})
 
-        print(f"  [{i + 1}/{len(cases)}] {case_id} ({category})...", end=" ")
+        bar = progress_bar(i, len(cases))
+        print(f"\r  {bar}  [{i + 1}/{len(cases)}] {case_id} ({category})...", end=" ")
 
         if dry_run:
             print("SKIP (dry run)")
             continue
 
         try:
-            api_result = call_claude_api(system_prompt, message)
+            api_result = call_claude_api(system_prompt, message, model=model)
             validation = validate_response(api_result["response"], expected, rules)
 
             case_result = {
@@ -329,6 +381,14 @@ def run_evaluation(
                 "failures": [str(e)],
             })
 
+    # Final progress bar
+    if not dry_run and cases:
+        bar = progress_bar(len(cases), len(cases))
+        print(f"\r  {bar}  Done.{' ' * 40}")
+
+    eval_elapsed = round(time.time() - eval_start, 3)
+    results["duration_seconds"] = eval_elapsed
+
     # Calculate summary statistics
     total = results["passed"] + results["failed"]
     if total > 0:
@@ -360,6 +420,10 @@ def main() -> None:
         "--version", default="v2.0.0", help="Prompt version (default: v2.0.0)"
     )
     parser.add_argument(
+        "--model", default=DEFAULT_MODEL,
+        help=f"Claude model to use (default: {DEFAULT_MODEL})",
+    )
+    parser.add_argument(
         "--tags", help="Filter by tags (comma-separated)"
     )
     parser.add_argument(
@@ -375,11 +439,17 @@ def main() -> None:
     parser.add_argument(
         "--all", action="store_true", help="Run all test cases (no limit)"
     )
+    parser.add_argument(
+        "--output-dir",
+        help="Custom directory for saving evaluation results "
+             "(default: llm-prompts/<prompt>/evaluation-results)",
+    )
     args = parser.parse_args()
 
     print(f"SafeFlow Prompt Evaluation")
     print(f"  Prompt: {args.prompt}")
     print(f"  Version: {args.version}")
+    print(f"  Model: {args.model}")
     print()
 
     # Load test cases
@@ -392,7 +462,9 @@ def main() -> None:
     print()
 
     # Run evaluation
-    results = run_evaluation(args.prompt, args.version, cases, dry_run=args.dry_run)
+    results = run_evaluation(
+        args.prompt, args.version, cases, model=args.model, dry_run=args.dry_run,
+    )
 
     # Output results
     if args.output_json:
@@ -404,6 +476,7 @@ def main() -> None:
         print("=" * 50)
         print(f"Overall Accuracy: {results.get('overall_accuracy', 0)}%")
         print(f"Passed: {results['passed']} / {results['passed'] + results['failed']}")
+        print(f"Duration: {results.get('duration_seconds', 0)}s")
         print()
 
         if results["by_category"]:
@@ -421,7 +494,10 @@ def main() -> None:
 
     # Save results
     if not args.dry_run:
-        results_dir = Path(f"llm-prompts/{args.prompt}/evaluation-results")
+        if args.output_dir:
+            results_dir = Path(args.output_dir)
+        else:
+            results_dir = Path(f"llm-prompts/{args.prompt}/evaluation-results")
         results_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         results_path = results_dir / f"eval_{args.version}_{timestamp}.json"

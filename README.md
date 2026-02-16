@@ -82,7 +82,7 @@ flowchart TB
 | **Messaging** | 360dialog WhatsApp Business API | v2.x | Tenant communication channel |
 | **Automation** | Make.com (formerly Integromat) | — | Workflow orchestration (6 scenarios) |
 | **Database** | Airtable | — | Operational data store (9 tables) |
-| **AI Engine** | Anthropic Claude API | claude-sonnet-4-20250514 | NLU, triage, classification, summarisation |
+| **AI Engine** | Anthropic Claude API | claude-sonnet-4-20250514 | NLU, triage, classification, summarisation, vision verification |
 | **Accounting** | Xero API | v2.0 | Invoice and payment processing |
 | **Testing** | k6 | v0.50+ | Load and performance testing |
 | **Testing** | pytest | v8.x | Prompt and integration testing |
@@ -539,6 +539,42 @@ SafeFlow enforces contractor certification compliance at assignment time and run
 ### Future: Document upload via WhatsApp
 
 A vision prompt (`llm-prompts/compliance/expiry-extract-vision.md`) is prepared for extracting expiry dates from photos of certification documents sent via WhatsApp. This is not yet integrated into any scenario.
+
+---
+
+## Photo Verification with Claude Vision
+
+When a contractor marks a job as complete (`DONE` command), SafeFlow uses Claude Vision to automatically assess photographic evidence of the repair before approving payment.
+
+### Flow
+
+1. Contractor sends `DONE` → job transitions to `VERIFICATION`
+2. Module 19 sends a **photo request template** to the contractor via WhatsApp
+3. Contractor replies with a photo → Scenario A parses it → Scenario B route 4g detects media on a `VERIFICATION` state work item
+4. **Module 5e** sends the photo + job context to Claude Vision API
+5. **Module 5f** evaluates the result:
+
+| Condition | Action | Target State |
+|---|---|---|
+| `is_resolved=true` AND `confidence >= 85` | Auto-approve | `PAYMENT_PENDING` |
+| `is_resolved=true` AND `confidence 50-84` | PM manual review | stays `VERIFICATION` |
+| `is_resolved=false` OR `confidence < 50` | Rework required | `IN_PROGRESS` |
+
+6. **Module 5g** persists `verification_confidence`, `verification_reason`, `verification_photo` to the Work Items table
+7. **Module 5h** writes the vision decision to the Audit Trail and sends the appropriate notification
+
+### LLM Prompts
+
+- **Verification vision prompt**: `llm-prompts/verification-vision/assess-resolution.md`
+- **Compliance vision prompt** (future): `llm-prompts/compliance/expiry-extract-vision.md`
+
+### Airtable Fields (Work_Items)
+
+| Field | Type | Description |
+|---|---|---|
+| `verification_confidence` | Number (0-100) | Claude Vision confidence score |
+| `verification_reason` | Long text | Vision reasoning for the decision |
+| `verification_photo` | URL | Contractor's verification photo URL |
 
 ---
 

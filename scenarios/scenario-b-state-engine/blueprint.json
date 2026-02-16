@@ -257,6 +257,13 @@
             "description": "Reply to a clarification request. LLM evaluates if enough detail now exists."
           },
           {
+            "id": "4g",
+            "name": "Verification Photo",
+            "condition": "{{inbound_payload.command.is_command = false AND inbound_payload.work_item.exists = true AND inbound_payload.work_item.current_state = 'VERIFICATION' AND inbound_payload.message.type = 'image'}}",
+            "target_module": "5e",
+            "description": "Photo received for a work item in VERIFICATION state. Route to Claude Vision assessment instead of LLM triage."
+          },
+          {
             "id": "4d",
             "name": "Media Attachment",
             "condition": "{{inbound_payload.command.is_command = false AND inbound_payload.work_item.exists = true AND (inbound_payload.message.type = 'image' OR inbound_payload.message.type = 'document' OR inbound_payload.message.type = 'audio' OR inbound_payload.message.type = 'video')}}",
@@ -417,6 +424,164 @@
         }
       },
       "output": "media_result"
+    },
+    {
+      "id": "5e",
+      "name": "Claude Vision - Photo Verification",
+      "type": "http_request",
+      "description": "Call the Claude API with vision capabilities to assess the contractor's verification photo. Determines whether the photo provides strong evidence that the reported issue is resolved. Only triggered for photos received on work items in VERIFICATION state (route 4g).",
+      "config": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "x-api-key": "{{ANTHROPIC_API_KEY}}",
+          "anthropic-version": "2023-06-01"
+        },
+        "body": {
+          "model": "{{LLM_MODEL_ID}}",
+          "max_tokens": 256,
+          "messages": [
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "image",
+                  "source": {
+                    "type": "url",
+                    "url": "{{inbound_payload.message.media_url}}"
+                  }
+                },
+                {
+                  "type": "text",
+                  "text": "Analyze this photo in context of the reported issue: {{work_item_lookup[0].fields.description}}\n\nCategory: {{work_item_lookup[0].fields.discipline_required}}\nUrgency: {{work_item_lookup[0].fields.urgency}}\nJob Reference: SF-{{work_item_lookup[0].fields.work_item_id}}\n\nDoes the photo provide strong evidence that the problem is now fixed? Output strict JSON only: {\"is_resolved\": boolean, \"confidence\": integer 0-100, \"reason\": string max 150 chars, \"severity_if_not\": \"None|Low|Medium|High\"}"
+                }
+              ]
+            }
+          ]
+        },
+        "timeout_ms": 30000,
+        "retry": {
+          "attempts": 2,
+          "delay_ms": 1000,
+          "on_status_codes": [429, 500, 502, 503]
+        }
+      },
+      "output": "vision_response",
+      "post_processing": {
+        "parse_json": "{{parseJSON(vision_response.content[0].text)}}",
+        "output_name": "vision_result"
+      },
+      "error_handler": {
+        "type": "route",
+        "target_module": "5f",
+        "note": "Vision failures route to result handler which defaults to REVIEW (manual PM review)"
+      }
+    },
+    {
+      "id": "5f",
+      "name": "Vision Result Handler",
+      "type": "transformer",
+      "description": "Evaluate the Claude Vision result and determine the next action. Auto-approve (PAYMENT_PENDING) if is_resolved=true AND confidence>=85. Manual review if confidence 50-84. Rework (IN_PROGRESS) if not resolved or confidence<50.",
+      "config": {
+        "mappings": {
+          "is_resolved": "{{ifempty(vision_result.is_resolved, false)}}",
+          "confidence": "{{ifempty(vision_result.confidence, 0)}}",
+          "reason": "{{ifempty(vision_result.reason, 'Vision assessment unavailable — requires manual review')}}",
+          "severity_if_not": "{{ifempty(vision_result.severity_if_not, 'Medium')}}",
+          "action": "{{if(ifempty(vision_result.is_resolved, false) = true AND ifempty(vision_result.confidence, 0) >= 85, 'APPROVE', if(ifempty(vision_result.is_resolved, false) = true AND ifempty(vision_result.confidence, 0) >= 50, 'REVIEW', 'REWORK'))}}",
+          "target_state": "{{if(ifempty(vision_result.is_resolved, false) = true AND ifempty(vision_result.confidence, 0) >= 85, 'PAYMENT_PENDING', if(ifempty(vision_result.is_resolved, false) = false OR ifempty(vision_result.confidence, 0) < 50, 'IN_PROGRESS', 'VERIFICATION'))}}",
+          "photo_url": "{{ifempty(inbound_payload.message.media_url, '')}}"
+        },
+        "side_effects": {
+          "log_event": {
+            "level": "INFO",
+            "message": "Vision verification assessed",
+            "job_id": "SF-{{work_item_lookup[0].fields.work_item_id}}",
+            "is_resolved": "{{ifempty(vision_result.is_resolved, false)}}",
+            "confidence": "{{ifempty(vision_result.confidence, 0)}}",
+            "action": "{{if(ifempty(vision_result.is_resolved, false) = true AND ifempty(vision_result.confidence, 0) >= 85, 'APPROVE', if(ifempty(vision_result.is_resolved, false) = true AND ifempty(vision_result.confidence, 0) >= 50, 'REVIEW', 'REWORK'))}}"
+          }
+        }
+      },
+      "output": "vision_decision"
+    },
+    {
+      "id": "5g",
+      "name": "Vision - Persist Result + Route",
+      "type": "airtable_update",
+      "description": "Persist the vision assessment result (confidence, reason, photo URL) to the work item. Then update state if auto-approved or rework needed.",
+      "config": {
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Work_Items",
+        "record_id": "{{inbound_payload.work_item.id}}",
+        "fields": {
+          "verification_confidence": "{{vision_decision.confidence}}",
+          "verification_reason": "{{vision_decision.reason}}",
+          "verification_photo": "{{vision_decision.photo_url}}",
+          "current_state": "{{vision_decision.target_state}}",
+          "previous_state": "VERIFICATION",
+          "state_started_at": "{{now}}",
+          "updated_at": "{{now}}",
+          "state_history": "{{ifempty(work_item_lookup[0].fields.state_history, '') + '\\n' + formatDate(now, 'YYYY-MM-DD HH:mm:ss') + ' | VERIFICATION -> ' + vision_decision.target_state + ' | Vision auto-assessment: ' + vision_decision.action + ' (confidence=' + vision_decision.confidence + ') | by system (VISION)'}}"
+        }
+      },
+      "output": "vision_persisted",
+      "error_handler": {
+        "type": "route",
+        "target_module": 99
+      }
+    },
+    {
+      "id": "5h",
+      "name": "Vision - Audit Trail + Notifications",
+      "type": "transformer",
+      "description": "Write the vision decision to the audit trail and route to the appropriate notification. Auto-approved → notify tenant of completion. Rework → notify contractor with reason. Review → notify PM.",
+      "config": {
+        "post_actions": [
+          {
+            "type": "airtable_create",
+            "description": "Write vision assessment to audit trail",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "Audit_Trail",
+            "fields": {
+              "work_item_id": "SF-{{work_item_lookup[0].fields.work_item_id}}",
+              "previous_state": "VERIFICATION",
+              "new_state": "{{vision_decision.target_state}}",
+              "triggered_by": "ai",
+              "actor_id": "{{executionId}}",
+              "transition_timestamp": "{{now}}",
+              "notes": "Vision photo assessment: action={{vision_decision.action}}, confidence={{vision_decision.confidence}}, reason={{vision_decision.reason}}{{if(vision_decision.action = 'REWORK', ', severity=' + vision_decision.severity_if_not, '')}}"
+            }
+          },
+          {
+            "type": "webhook_call",
+            "description": "Send notification based on vision outcome",
+            "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Source-Scenario": "scenario-b-state-engine",
+              "X-Execution-Id": "{{executionId}}"
+            },
+            "body": {
+              "recipient": {
+                "person_id": "{{if(vision_decision.action = 'APPROVE', persisted_work_item.fields.reported_by, if(vision_decision.action = 'REWORK', ifempty(work_item_lookup[0].fields.assigned_engineer_id, work_item_lookup[0].fields.contractor_id), ifempty(site_lookup[0].fields.property_manager_id, '')))}}",
+                "phone": "",
+                "name": ""
+              },
+              "message_type": "text",
+              "message": {
+                "text": "{{if(vision_decision.action = 'APPROVE', 'Great news! Job SF-' + work_item_lookup[0].fields.work_item_id + ' (' + work_item_lookup[0].fields.title + ') has been verified as complete. Payment is now being processed. Thank you for using SafeFlow.', if(vision_decision.action = 'REWORK', 'Job SF-' + work_item_lookup[0].fields.work_item_id + ' (' + work_item_lookup[0].fields.title + ') verification photo review: the issue does not appear fully resolved. Reason: ' + vision_decision.reason + '. Please revisit and send an updated photo when the work is complete.', 'Job SF-' + work_item_lookup[0].fields.work_item_id + ' requires manual verification review. Vision confidence: ' + vision_decision.confidence + '%. Reason: ' + vision_decision.reason))}}"
+              },
+              "work_item_id": "{{work_item_lookup[0].fields.work_item_id}}",
+              "notification_type": "{{if(vision_decision.action = 'APPROVE', 'VERIFICATION_APPROVED', if(vision_decision.action = 'REWORK', 'VERIFICATION_REWORK', 'VERIFICATION_REVIEW'))}}",
+              "source": "STATE_ENGINE"
+            }
+          }
+        ]
+      },
+      "output": "vision_notification"
     },
     {
       "id": 6,
@@ -954,9 +1119,9 @@
     },
     {
       "id": 19,
-      "name": "Side Effect - Verification Required",
+      "name": "Side Effect - Verification Photo Request",
       "type": "webhook_call",
-      "description": "Contractor reports work complete. Ask tenant to verify/confirm completion with interactive buttons.",
+      "description": "Contractor reports work complete. Send a photo request template to the contractor asking for photographic evidence of the completed work. The photo will be assessed by Claude Vision (modules 5e-5h) when it arrives.",
       "config": {
         "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
         "method": "POST",
@@ -967,25 +1132,27 @@
         },
         "body": {
           "recipient": {
-            "person_id": "{{persisted_work_item.fields.reported_by}}",
+            "person_id": "{{ifempty(persisted_work_item.fields.assigned_engineer_id, persisted_work_item.fields.contractor_id)}}",
             "phone": "",
             "name": ""
           },
-          "message_type": "interactive",
-          "interactive": {
-            "type": "button",
-            "body": {
-              "text": "The contractor has marked job SF-{{persisted_work_item.fields.work_item_id}} ({{persisted_work_item.fields.title}}) as complete.\n\nAre you happy with the work?"
-            },
-            "action": {
-              "buttons": [
-                { "type": "reply", "reply": { "id": "CONFIRM_COMPLETE", "title": "Looks good" } },
-                { "type": "reply", "reply": { "id": "REOPEN", "title": "Not resolved" } }
-              ]
-            }
+          "message_type": "template",
+          "template": {
+            "name": "verification_photo_request",
+            "language": "en_GB",
+            "components": [
+              {
+                "type": "body",
+                "parameters": [
+                  { "type": "text", "text": "{{ifempty(person_lookup[0].fields.first_name, 'there')}}" },
+                  { "type": "text", "text": "SF-{{persisted_work_item.fields.work_item_id}}" },
+                  { "type": "text", "text": "{{persisted_work_item.fields.title}}" }
+                ]
+              }
+            ]
           },
           "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
-          "notification_type": "VERIFICATION_REQUEST",
+          "notification_type": "VERIFICATION_PHOTO_REQUEST",
           "source": "STATE_ENGINE"
         }
       },
@@ -1287,11 +1454,14 @@
     { "from": 1, "to": 2 },
     { "from": 2, "to": 3 },
     { "from": 3, "to": 4 },
-    { "from": 4, "to": [5, 6] },
+    { "from": 4, "to": [5, "5e", 6], "note": "Routes: LLM triage (4b-4f), Vision verification (4g), or Command (4a)" },
     { "from": 5, "to": "5c", "note": "LLM success → confidence gate" },
     { "from": "5b", "to": "5c", "note": "LLM failure → fallback → confidence gate" },
     { "from": "5c", "to": "5d", "note": "Confidence gate → media fallback check" },
     { "from": "5d", "to": 7, "note": "Media fallback → state transition validator" },
+    { "from": "5e", "to": "5f", "note": "Vision API → result handler" },
+    { "from": "5f", "to": "5g", "note": "Result handler → persist + update state" },
+    { "from": "5g", "to": "5h", "note": "Persist → audit trail + notifications" },
     { "from": 6, "to": 7 },
     { "from": 7, "to": 8 },
     { "from": 8, "to": [9, 13] },

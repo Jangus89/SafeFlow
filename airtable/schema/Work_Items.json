@@ -229,6 +229,27 @@
       "description": "Engineer or contractor notes on the completed work, including any follow-up recommendations"
     },
     {
+      "field_id": "fldWIVerificationConfidence",
+      "name": "verification_confidence",
+      "type": "number",
+      "description": "Claude Vision confidence score (0-100) from the photo verification assessment. Scores >= 85 auto-approve to PAYMENT_PENDING.",
+      "options": {
+        "precision": 0
+      }
+    },
+    {
+      "field_id": "fldWIVerificationReason",
+      "name": "verification_reason",
+      "type": "multilineText",
+      "description": "Claude Vision reasoning for the verification decision. Max 150 chars from the model, may include additional context."
+    },
+    {
+      "field_id": "fldWIVerificationPhoto",
+      "name": "verification_photo",
+      "type": "url",
+      "description": "URL of the contractor's verification photo retrieved from 360dialog media API"
+    },
+    {
       "field_id": "fldWISLADueAt",
       "name": "sla_due_at",
       "type": "dateTime",
@@ -457,6 +478,20 @@
       ]
     },
     {
+      "name": "Verification Queue",
+      "type": "grid",
+      "description": "Work items awaiting photo verification, showing Claude Vision assessment results",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "current_state", "operator": "isEqual", "value": "VERIFICATION" }
+        ]
+      },
+      "sort": [
+        { "field": "state_started_at", "direction": "asc" }
+      ]
+    },
+    {
       "name": "Supervisor Review Queue",
       "type": "grid",
       "description": "Work items flagged for supervisor review due to low AI confidence, fallback activation, or unassigned contractors",
@@ -477,7 +512,7 @@
     "belongs_to": ["Sites", "People", "Contractors"],
     "has_many": ["Quotes", "Payments", "Interaction_Logs", "Errors", "Audit_Trail"]
   },
-  "field_count": 37,
+  "field_count": 40,
   "formula_count": 4,
   "link_count": 4
 }

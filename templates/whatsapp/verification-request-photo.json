@@ -1,0 +1,43 @@
+{
+  "name": "verification_photo_request",
+  "language": "en_GB",
+  "category": "UTILITY",
+  "description": "Sent to the contractor when a job enters VERIFICATION state. Requests photographic evidence that the work has been completed satisfactorily.",
+  "components": [
+    {
+      "type": "header",
+      "format": "TEXT",
+      "text": "Photo Evidence Required"
+    },
+    {
+      "type": "body",
+      "text": "Hi {{1}},\n\nJob {{2}} ({{3}}) has been marked as complete.\n\nPlease send a photo showing the completed work so we can verify the repair. You can also include a short comment describing what was done.\n\nSimply reply to this message with your photo.",
+      "example": {
+        "body_text": [
+          ["Dave", "SF-1042", "Leaking pipe in Unit 3B kitchen"]
+        ]
+      }
+    },
+    {
+      "type": "footer",
+      "text": "SafeFlow Verification"
+    }
+  ],
+  "parameters": [
+    {
+      "index": 1,
+      "field": "contractor_name",
+      "description": "Contractor's first name or company name"
+    },
+    {
+      "index": 2,
+      "field": "work_item_id",
+      "description": "Work item reference (e.g. SF-1042)"
+    },
+    {
+      "index": 3,
+      "field": "title",
+      "description": "Short title of the work item"
+    }
+  ]
+}

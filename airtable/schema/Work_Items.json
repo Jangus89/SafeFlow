@@ -44,7 +44,8 @@
           { "name": "ESCALATED", "color": "redBright" },
           { "name": "ON_HOLD", "color": "purpleLight2" },
           { "name": "CANCELLED", "color": "grayDark1" },
-          { "name": "REOPENED", "color": "pinkLight2" }
+          { "name": "REOPENED", "color": "pinkLight2" },
+          { "name": "RFQ_PENDING", "color": "blueBright" }
         ]
       }
     },
@@ -100,9 +101,9 @@
       "field_id": "fldWIAssignedEngineer",
       "name": "assigned_engineer_id",
       "type": "multipleRecordLinks",
-      "description": "Link to the internal engineer assigned to this work item",
+      "description": "Link to the internal engineer assigned to this work item (used when assigned_resource_type=INTERNAL)",
       "options": {
-        "linkedTableId": "tblPeople",
+        "linkedTableId": "tblEngineers",
         "prefersSingleRecordLink": true
       }
     },
@@ -110,10 +111,22 @@
       "field_id": "fldWIContractorId",
       "name": "contractor_id",
       "type": "multipleRecordLinks",
-      "description": "Link to the external contractor assigned to this work item, if applicable",
+      "description": "Link to the external contractor assigned to this work item (used when assigned_resource_type=EXTERNAL)",
       "options": {
         "linkedTableId": "tblContractors",
         "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldWIResourceType",
+      "name": "assigned_resource_type",
+      "type": "singleSelect",
+      "description": "Whether the job is assigned to an internal engineer or external contractor. Set by hybrid assignment logic during ASSESSMENT.",
+      "options": {
+        "choices": [
+          { "name": "INTERNAL", "color": "greenBright" },
+          { "name": "EXTERNAL", "color": "blueBright" }
+        ]
       }
     },
     {
@@ -509,10 +522,10 @@
     }
   ],
   "relationships": {
-    "belongs_to": ["Sites", "People", "Contractors"],
-    "has_many": ["Quotes", "Payments", "Interaction_Logs", "Errors", "Audit_Trail"]
+    "belongs_to": ["Sites", "People", "Contractors", "Engineers"],
+    "has_many": ["Quotes", "Payments", "Interaction_Logs", "Errors", "Audit_Trail", "Escalations"]
   },
-  "field_count": 40,
+  "field_count": 41,
   "formula_count": 4,
-  "link_count": 4
+  "link_count": 5
 }

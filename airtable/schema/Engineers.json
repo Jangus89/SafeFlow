@@ -1,0 +1,169 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblEngineers",
+  "name": "Engineers",
+  "description": "Internal (in-house) engineers available for direct job assignment. Used by hybrid assignment logic to decide whether a job should be handled internally or sent to an external contractor.",
+  "record_count_estimate": "Low volume - typically 5-30 internal engineers per property portfolio",
+  "primary_field": "name",
+  "fields": [
+    {
+      "field_id": "fldEngAutoId",
+      "name": "engineer_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each engineer"
+    },
+    {
+      "field_id": "fldEngName",
+      "name": "name",
+      "type": "singleLineText",
+      "description": "Full name of the internal engineer"
+    },
+    {
+      "field_id": "fldEngEmail",
+      "name": "email",
+      "type": "email",
+      "description": "Work email address"
+    },
+    {
+      "field_id": "fldEngPhone",
+      "name": "phone",
+      "type": "phoneNumber",
+      "description": "Mobile/WhatsApp number in E.164 format (e.g. +447700900123)"
+    },
+    {
+      "field_id": "fldEngPersonId",
+      "name": "person_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the People table record for this engineer (used for WhatsApp messaging via Scenario C)",
+      "options": {
+        "linkedTableId": "tblPeople",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldEngTrades",
+      "name": "trade_disciplines",
+      "type": "multipleSelects",
+      "description": "Trade disciplines this engineer is qualified to handle",
+      "options": {
+        "choices": [
+          { "name": "PLUMBING", "color": "blueLight2" },
+          { "name": "ELECTRICAL", "color": "yellowLight2" },
+          { "name": "GAS_SAFE", "color": "redLight2" },
+          { "name": "HVAC", "color": "cyanLight2" },
+          { "name": "GENERAL_MAINTENANCE", "color": "greenLight2" },
+          { "name": "FIRE_SAFETY", "color": "orangeLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldEngStatus",
+      "name": "status",
+      "type": "singleSelect",
+      "description": "Current availability status of the engineer",
+      "options": {
+        "choices": [
+          { "name": "AVAILABLE", "color": "greenBright" },
+          { "name": "ON_JOB", "color": "yellowBright" },
+          { "name": "OFF_DUTY", "color": "grayLight2" },
+          { "name": "ON_LEAVE", "color": "purpleLight2" },
+          { "name": "INACTIVE", "color": "grayDark1" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldEngRating",
+      "name": "rating",
+      "type": "number",
+      "description": "Internal performance rating (1-5). Used for assignment priority.",
+      "options": {
+        "precision": 1
+      }
+    },
+    {
+      "field_id": "fldEngCurrentJobs",
+      "name": "current_open_jobs",
+      "type": "number",
+      "description": "Number of currently assigned open jobs. Updated by Scenario B on assignment/completion.",
+      "options": {
+        "precision": 0
+      }
+    },
+    {
+      "field_id": "fldEngMaxJobs",
+      "name": "max_concurrent_jobs",
+      "type": "number",
+      "description": "Maximum number of concurrent jobs this engineer can handle",
+      "options": {
+        "precision": 0
+      }
+    },
+    {
+      "field_id": "fldEngCostThreshold",
+      "name": "cost_threshold",
+      "type": "currency",
+      "description": "Maximum estimated job cost this engineer can handle without RFQ escalation to PM. Jobs above this threshold may trigger RFQ.",
+      "options": {
+        "precision": 2,
+        "symbol": "\u00a3"
+      }
+    },
+    {
+      "field_id": "fldEngNotes",
+      "name": "notes",
+      "type": "multilineText",
+      "description": "Internal notes about the engineer"
+    }
+  ],
+  "views": [
+    {
+      "name": "All Engineers",
+      "type": "grid",
+      "description": "Complete list of all engineers",
+      "fields": "all",
+      "sort": [
+        { "field": "name", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "Available by Trade",
+      "type": "grid",
+      "description": "Available engineers grouped by trade discipline",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "status", "operator": "isEqual", "value": "AVAILABLE" }
+        ]
+      },
+      "group": [
+        { "field": "trade_disciplines", "direction": "asc" }
+      ],
+      "sort": [
+        { "field": "rating", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Workload Overview",
+      "type": "grid",
+      "description": "All active engineers sorted by current workload",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "status", "operator": "isNoneOf", "value": ["INACTIVE"] }
+        ]
+      },
+      "sort": [
+        { "field": "current_open_jobs", "direction": "desc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": ["People"],
+    "referenced_by": ["Work_Items"]
+  },
+  "field_count": 12,
+  "formula_count": 0,
+  "link_count": 1
+}

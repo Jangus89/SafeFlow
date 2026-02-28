@@ -593,10 +593,10 @@
           "command": "{{inbound_payload.command.command}}",
           "current_state": "{{ifempty(inbound_payload.work_item.current_state, '')}}",
           "person_role": "{{inbound_payload.person.role}}",
-          "target_state": "{{switch(inbound_payload.command.command, 'DONE', 'VERIFICATION', 'ACCEPT', 'ACCEPTED', 'START', 'IN_PROGRESS', 'REJECT', 'ASSIGNED', 'CANCEL', 'CANCELLED', 'HOLD', 'ON_HOLD', 'QUOTE', 'ASSESSMENT', 'APPROVE', 'ASSIGNED', 'ESCALATE', 'ESCALATED', 'CONFIRM_COMPLETE', 'CLOSED', 'REOPEN', 'REOPENED', '')}}",
-          "valid_source_states": "{{switch(inbound_payload.command.command, 'DONE', parseJSON('[\"IN_PROGRESS\"]'), 'ACCEPT', parseJSON('[\"ASSIGNED\"]'), 'START', parseJSON('[\"ACCEPTED\"]'), 'REJECT', parseJSON('[\"ASSIGNED\"]'), 'CANCEL', parseJSON('[\"INTAKE\", \"CLARIFICATION\", \"ASSESSMENT\", \"ASSIGNED\", \"ACCEPTED\", \"ON_HOLD\"]'), 'HOLD', parseJSON('[\"IN_PROGRESS\", \"ACCEPTED\"]'), 'QUOTE', parseJSON('[\"ASSIGNED\", \"ACCEPTED\"]'), 'APPROVE', parseJSON('[\"ASSESSMENT\", \"VERIFICATION\"]'), 'ESCALATE', parseJSON('[\"INTAKE\", \"CLARIFICATION\", \"ASSESSMENT\", \"ASSIGNED\", \"ACCEPTED\", \"IN_PROGRESS\", \"ON_HOLD\"]'), 'CONFIRM_COMPLETE', parseJSON('[\"VERIFICATION\"]'), 'REOPEN', parseJSON('[\"CLOSED\"]'), parseJSON('[]'))}}",
-          "permitted_roles": "{{switch(inbound_payload.command.command, 'DONE', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'ACCEPT', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'START', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'REJECT', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'CANCEL', parseJSON('[\"TENANT\", \"MANAGER\", \"ADMIN\", \"SYSTEM\"]'), 'HOLD', parseJSON('[\"MANAGER\", \"ADMIN\", \"CONTRACTOR\", \"ENGINEER\"]'), 'QUOTE', parseJSON('[\"CONTRACTOR\"]'), 'APPROVE', parseJSON('[\"MANAGER\", \"ADMIN\"]'), 'ESCALATE', parseJSON('[\"MANAGER\", \"ADMIN\", \"SYSTEM\"]'), 'CONFIRM_COMPLETE', parseJSON('[\"TENANT\", \"MANAGER\", \"ADMIN\"]'), 'REOPEN', parseJSON('[\"TENANT\", \"MANAGER\", \"ADMIN\"]'), parseJSON('[]'))}}",
-          "transition_reason": "{{switch(inbound_payload.command.command, 'DONE', 'Contractor marked work as complete', 'ACCEPT', 'Assignee accepted the job', 'START', 'Assignee started work on site', 'REJECT', 'Assignee rejected the job assignment', 'CANCEL', 'Work order cancelled by ' + inbound_payload.person.role, 'HOLD', 'Work placed on hold by ' + inbound_payload.person.role, 'QUOTE', 'Quote submitted by contractor', 'APPROVE', 'Approved by ' + inbound_payload.person.role, 'ESCALATE', 'Escalated by ' + inbound_payload.person.role, 'CONFIRM_COMPLETE', 'Completion confirmed and verified', 'REOPEN', 'Work order reopened by ' + inbound_payload.person.role, 'Unknown command')}}",
+          "target_state": "{{switch(inbound_payload.command.command, 'DONE', 'VERIFICATION', 'ACCEPT', 'ACCEPTED', 'START', 'IN_PROGRESS', 'REJECT', 'ASSIGNED', 'CANCEL', 'CANCELLED', 'HOLD', 'ON_HOLD', 'QUOTE', 'ASSESSMENT', 'APPROVE', 'ASSIGNED', 'ESCALATE', 'ESCALATED', 'CONFIRM_COMPLETE', 'CLOSED', 'REOPEN', 'REOPENED', 'RFQ', 'RFQ_PENDING', 'APPROVE_RFQ', 'ASSESSMENT', 'REJECT_RFQ', 'IN_PROGRESS', '')}}",
+          "valid_source_states": "{{switch(inbound_payload.command.command, 'DONE', parseJSON('[\"IN_PROGRESS\"]'), 'ACCEPT', parseJSON('[\"ASSIGNED\"]'), 'START', parseJSON('[\"ACCEPTED\"]'), 'REJECT', parseJSON('[\"ASSIGNED\"]'), 'CANCEL', parseJSON('[\"INTAKE\", \"CLARIFICATION\", \"ASSESSMENT\", \"ASSIGNED\", \"ACCEPTED\", \"ON_HOLD\"]'), 'HOLD', parseJSON('[\"IN_PROGRESS\", \"ACCEPTED\"]'), 'QUOTE', parseJSON('[\"ASSIGNED\", \"ACCEPTED\"]'), 'APPROVE', parseJSON('[\"ASSESSMENT\", \"VERIFICATION\"]'), 'ESCALATE', parseJSON('[\"INTAKE\", \"CLARIFICATION\", \"ASSESSMENT\", \"ASSIGNED\", \"ACCEPTED\", \"IN_PROGRESS\", \"ON_HOLD\"]'), 'CONFIRM_COMPLETE', parseJSON('[\"VERIFICATION\"]'), 'REOPEN', parseJSON('[\"CLOSED\"]'), 'RFQ', parseJSON('[\"IN_PROGRESS\", \"ACCEPTED\", \"ASSIGNED\"]'), 'APPROVE_RFQ', parseJSON('[\"RFQ_PENDING\"]'), 'REJECT_RFQ', parseJSON('[\"RFQ_PENDING\"]'), parseJSON('[]'))}}",
+          "permitted_roles": "{{switch(inbound_payload.command.command, 'DONE', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'ACCEPT', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'START', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'REJECT', parseJSON('[\"CONTRACTOR\", \"ENGINEER\"]'), 'CANCEL', parseJSON('[\"TENANT\", \"MANAGER\", \"ADMIN\", \"SYSTEM\"]'), 'HOLD', parseJSON('[\"MANAGER\", \"ADMIN\", \"CONTRACTOR\", \"ENGINEER\"]'), 'QUOTE', parseJSON('[\"CONTRACTOR\"]'), 'APPROVE', parseJSON('[\"MANAGER\", \"ADMIN\"]'), 'ESCALATE', parseJSON('[\"MANAGER\", \"ADMIN\", \"SYSTEM\"]'), 'CONFIRM_COMPLETE', parseJSON('[\"TENANT\", \"MANAGER\", \"ADMIN\"]'), 'REOPEN', parseJSON('[\"TENANT\", \"MANAGER\", \"ADMIN\"]'), 'RFQ', parseJSON('[\"ENGINEER\"]'), 'APPROVE_RFQ', parseJSON('[\"MANAGER\", \"ADMIN\"]'), 'REJECT_RFQ', parseJSON('[\"MANAGER\", \"ADMIN\"]'), parseJSON('[]'))}}",
+          "transition_reason": "{{switch(inbound_payload.command.command, 'DONE', 'Contractor marked work as complete', 'ACCEPT', 'Assignee accepted the job', 'START', 'Assignee started work on site', 'REJECT', 'Assignee rejected the job assignment', 'CANCEL', 'Work order cancelled by ' + inbound_payload.person.role, 'HOLD', 'Work placed on hold by ' + inbound_payload.person.role, 'QUOTE', 'Quote submitted by contractor', 'APPROVE', 'Approved by ' + inbound_payload.person.role, 'ESCALATE', 'Escalated by ' + inbound_payload.person.role, 'CONFIRM_COMPLETE', 'Completion confirmed and verified', 'REOPEN', 'Work order reopened by ' + inbound_payload.person.role, 'RFQ', 'Engineer requests external quotes via RFQ', 'APPROVE_RFQ', 'PM approved RFQ — routing to external contractor assignment', 'REJECT_RFQ', 'PM rejected RFQ — engineer to continue internally', 'Unknown command')}}",
           "extract_quote_amount": "{{if(inbound_payload.command.command = 'QUOTE', first(match(inbound_payload.message.text, '(?i)\\x{00A3}\\s*([\\d,]+\\.?\\d{0,2})')), '')}}",
           "is_system_action": "{{if(inbound_payload.person.role = 'SYSTEM', true, false)}}"
         }
@@ -819,6 +819,144 @@
       "output": "assignment_result"
     },
     {
+      "id": "11d",
+      "name": "Hybrid Assignment Decision - Claude API",
+      "type": "http_request",
+      "description": "During ASSESSMENT, call Claude to decide whether the job should be assigned to an internal engineer or external contractor. Only triggers when a new work item reaches ASSESSMENT and auto-assign is not suppressed.",
+      "config": {
+        "trigger_condition": "{{validated_transition.final_target_state = 'ASSESSMENT' AND confidence_gate.suppress_auto_assign != true}}",
+        "skip_if": "{{confidence_gate.suppress_auto_assign}}",
+        "url": "https://api.anthropic.com/v1/messages",
+        "method": "POST",
+        "headers": {
+          "Content-Type": "application/json",
+          "x-api-key": "{{ANTHROPIC_API_KEY}}",
+          "anthropic-version": "2023-06-01"
+        },
+        "body": {
+          "model": "{{LLM_MODEL_ID}}",
+          "max_tokens": 128,
+          "messages": [
+            {
+              "role": "user",
+              "content": "Given job category {{validated_transition.discipline}}, urgency {{validated_transition.urgency}}, estimated cost {{ifempty(persisted_work_item.fields.cost_estimate, 'unknown')}}, description: {{ifempty(validated_transition.description, persisted_work_item.fields.description)}}. Is this suitable for an internal engineer? Output strict JSON only: {\"use_internal\": boolean, \"reason\": string}"
+            }
+          ]
+        },
+        "timeout_ms": 10000,
+        "retry": {
+          "attempts": 1,
+          "delay_ms": 1000,
+          "on_status_codes": [429, 500, 502, 503]
+        }
+      },
+      "output": "hybrid_decision_response",
+      "post_processing": {
+        "parse_json": "{{parseJSON(hybrid_decision_response.content[0].text)}}",
+        "output_name": "hybrid_decision"
+      },
+      "error_handler": {
+        "type": "route",
+        "target_module": "11e",
+        "note": "LLM failure falls through to deterministic evaluation in 11e"
+      }
+    },
+    {
+      "id": "11e",
+      "name": "Hybrid Decision Evaluator",
+      "type": "transformer",
+      "description": "Evaluate the hybrid assignment decision (from LLM or fallback). If use_internal=true, attempt to find an internal engineer. If false or no LLM response, proceed to external contractor assignment (module 11c already ran).",
+      "config": {
+        "mappings": {
+          "use_internal": "{{ifempty(hybrid_decision.use_internal, false)}}",
+          "decision_reason": "{{ifempty(hybrid_decision.reason, 'LLM unavailable — defaulting to external contractor')}}",
+          "resource_type": "{{if(ifempty(hybrid_decision.use_internal, false) = true, 'INTERNAL', 'EXTERNAL')}}"
+        },
+        "side_effects": {
+          "log_event": {
+            "level": "INFO",
+            "message": "Hybrid assignment decision",
+            "job_id": "SF-{{persisted_work_item.fields.work_item_id}}",
+            "use_internal": "{{ifempty(hybrid_decision.use_internal, false)}}",
+            "reason": "{{ifempty(hybrid_decision.reason, 'LLM unavailable')}}"
+          }
+        }
+      },
+      "output": "hybrid_eval"
+    },
+    {
+      "id": "11f",
+      "name": "Internal Engineer Search",
+      "type": "airtable_search",
+      "description": "If hybrid decision is use_internal=true, search Engineers table for a matching available engineer. Skip if use_internal=false.",
+      "config": {
+        "skip_if": "{{hybrid_eval.use_internal = false}}",
+        "base_id": "{{AIRTABLE_BASE_ID}}",
+        "table": "Engineers",
+        "filter_formula": "{{AND({status} = 'AVAILABLE', FIND('" + validated_transition.discipline + "', ARRAYJOIN({trade_disciplines}, ',')) > 0)}}",
+        "fields": [
+          "engineer_id",
+          "name",
+          "phone",
+          "person_id",
+          "trade_disciplines",
+          "status",
+          "rating",
+          "current_open_jobs",
+          "max_concurrent_jobs",
+          "cost_threshold"
+        ],
+        "max_records": 20,
+        "sort": [
+          { "field": "rating", "direction": "desc" },
+          { "field": "current_open_jobs", "direction": "asc" }
+        ]
+      },
+      "output": "engineer_candidates",
+      "error_handler": {
+        "type": "ignore",
+        "note": "If engineer search fails, fall through to external contractor"
+      }
+    },
+    {
+      "id": "11g",
+      "name": "Internal Engineer Match & Assign",
+      "type": "transformer",
+      "description": "Evaluate engineer candidates. If a match is found: set assigned_resource_type=INTERNAL, assigned_engineer_id. If no match: fall through to external contractor (assignment_result from 11c). Also updates the persisted work item with resource_type.",
+      "config": {
+        "mappings": {
+          "engineer_matched": "{{if(hybrid_eval.use_internal = true AND length(ifempty(engineer_candidates, parseJSON('[]'))) > 0, true, false)}}",
+          "selected_engineer": "{{if(hybrid_eval.use_internal = true AND length(ifempty(engineer_candidates, parseJSON('[]'))) > 0, engineer_candidates[0], null)}}",
+          "final_resource_type": "{{if(hybrid_eval.use_internal = true AND length(ifempty(engineer_candidates, parseJSON('[]'))) > 0, 'INTERNAL', 'EXTERNAL')}}",
+          "assignment_note": "{{if(hybrid_eval.use_internal = true AND length(ifempty(engineer_candidates, parseJSON('[]'))) > 0, 'Assigned to internal engineer: ' + engineer_candidates[0].fields.name + ' (rating ' + engineer_candidates[0].fields.rating + ')', if(hybrid_eval.use_internal = true, 'No internal engineer available — falling through to external contractor', 'External contractor assignment per hybrid decision'))}}"
+        },
+        "post_actions": [
+          {
+            "type": "airtable_update",
+            "description": "Set assigned_resource_type on work item",
+            "condition": "{{validated_transition.final_target_state = 'ASSESSMENT'}}",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "Work_Items",
+            "record_id": "{{persisted_work_item.id}}",
+            "fields": {
+              "assigned_resource_type": "{{if(hybrid_eval.use_internal = true AND length(ifempty(engineer_candidates, parseJSON('[]'))) > 0, 'INTERNAL', 'EXTERNAL')}}",
+              "assigned_engineer_id": "{{if(hybrid_eval.use_internal = true AND length(ifempty(engineer_candidates, parseJSON('[]'))) > 0, [engineer_candidates[0].id], undefined)}}"
+            }
+          }
+        ]
+      },
+      "output": "hybrid_assignment",
+      "side_effects": {
+        "log_event": {
+          "level": "INFO",
+          "message": "Hybrid assignment resolved",
+          "job_id": "SF-{{persisted_work_item.fields.work_item_id}}",
+          "resource_type": "{{if(hybrid_eval.use_internal = true AND length(ifempty(engineer_candidates, parseJSON('[]'))) > 0, 'INTERNAL', 'EXTERNAL')}}",
+          "engineer_matched": "{{if(hybrid_eval.use_internal = true AND length(ifempty(engineer_candidates, parseJSON('[]'))) > 0, true, false)}}"
+        }
+      }
+    },
+    {
       "id": 12,
       "name": "Side Effects Router",
       "type": "router",
@@ -901,6 +1039,13 @@
             "condition": "{{validated_transition.final_target_state = 'PAYMENT_PENDING'}}",
             "target_module": 24,
             "description": "Work verified, payment needed. Create Xero invoice."
+          },
+          {
+            "id": "12l",
+            "name": "RFQ Pending - Notify PM",
+            "condition": "{{validated_transition.final_target_state = 'RFQ_PENDING'}}",
+            "target_module": 25,
+            "description": "Internal engineer requested RFQ. Notify property manager with approve/reject buttons."
           }
         ]
       }
@@ -1396,6 +1541,82 @@
       }
     },
     {
+      "id": 25,
+      "name": "Side Effect - RFQ Pending (Notify PM)",
+      "type": "transformer",
+      "description": "Internal engineer has requested an RFQ. Create an Escalations record, then notify the property manager with approve/reject buttons via Scenario C.",
+      "config": {
+        "post_actions": [
+          {
+            "type": "airtable_create",
+            "description": "Create RFQ escalation record",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "Escalations",
+            "fields": {
+              "work_item_id": ["{{persisted_work_item.id}}"],
+              "escalation_type": "RFQ",
+              "reason": "Internal engineer requests external quotes: {{ifempty(inbound_payload.message.text, 'Job complexity exceeds internal capability')}}",
+              "rfq_reason": "{{ifempty(inbound_payload.message.text, 'Job complexity exceeds internal capability')}}",
+              "triggered_by": "engineer",
+              "assigned_manager_id": ["{{ifempty(site_lookup[0].fields.property_manager_id, '')}}"],
+              "status": "OPEN",
+              "created_at": "{{now}}"
+            }
+          },
+          {
+            "type": "webhook_call",
+            "description": "Notify PM with RFQ approve/reject buttons",
+            "url": "{{MAKE_WEBHOOK_URL_SCENARIO_C}}",
+            "method": "POST",
+            "headers": {
+              "Content-Type": "application/json",
+              "X-Source-Scenario": "scenario-b-state-engine",
+              "X-Execution-Id": "{{executionId}}"
+            },
+            "body": {
+              "recipient": {
+                "person_id": "{{ifempty(site_lookup[0].fields.property_manager_id, '')}}",
+                "phone": "",
+                "name": ""
+              },
+              "message_type": "interactive",
+              "interactive": {
+                "type": "button",
+                "body": {
+                  "text": "RFQ Request for Job SF-{{persisted_work_item.fields.work_item_id}} ({{persisted_work_item.fields.title}})\n\nEngineer {{inbound_payload.person.name}} has requested external quotes.\nReason: {{ifempty(inbound_payload.message.text, 'Job complexity exceeds internal capability')}}\nCategory: {{persisted_work_item.fields.discipline_required}}\nUrgency: {{persisted_work_item.fields.urgency}}\n\nApprove to send this job for external contractor quotes, or reject to return it to the internal engineer."
+                },
+                "action": {
+                  "buttons": [
+                    { "type": "reply", "reply": { "id": "APPROVE_RFQ", "title": "Approve RFQ" } },
+                    { "type": "reply", "reply": { "id": "REJECT_RFQ", "title": "Reject RFQ" } }
+                  ]
+                }
+              },
+              "work_item_id": "{{persisted_work_item.fields.work_item_id}}",
+              "notification_type": "RFQ_REQUEST",
+              "source": "STATE_ENGINE"
+            }
+          },
+          {
+            "type": "airtable_create",
+            "description": "Write RFQ escalation to audit trail",
+            "base_id": "{{AIRTABLE_BASE_ID}}",
+            "table": "Audit_Trail",
+            "fields": {
+              "work_item_id": "SF-{{persisted_work_item.fields.work_item_id}}",
+              "previous_state": "IN_PROGRESS",
+              "new_state": "RFQ_PENDING",
+              "triggered_by": "user",
+              "actor_id": "{{inbound_payload.person.id}}",
+              "transition_timestamp": "{{now}}",
+              "notes": "Internal engineer requested RFQ. Reason: {{ifempty(inbound_payload.message.text, 'Job complexity exceeds internal capability')}}"
+            }
+          }
+        ]
+      },
+      "output": "rfq_notification"
+    },
+    {
       "id": 99,
       "name": "Global Error Handler",
       "type": "error_handler",
@@ -1469,8 +1690,12 @@
     { "from": 10, "to": 11 },
     { "from": 11, "to": "11b", "note": "Interaction log → audit trail" },
     { "from": "11b", "to": "11c", "note": "Audit trail → contractor assignment" },
-    { "from": "11c", "to": 12 },
-    { "from": 12, "to": [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24] }
+    { "from": "11c", "to": "11d", "note": "External contractor assignment → hybrid decision" },
+    { "from": "11d", "to": "11e", "note": "LLM hybrid decision → evaluator" },
+    { "from": "11e", "to": "11f", "note": "Evaluator → engineer search (if internal)" },
+    { "from": "11f", "to": "11g", "note": "Engineer search → match & assign" },
+    { "from": "11g", "to": 12 },
+    { "from": 12, "to": [14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25] }
   ],
   "env_vars": [
     "MAKE_WEBHOOK_URL_SCENARIO_B",

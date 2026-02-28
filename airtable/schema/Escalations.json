@@ -1,0 +1,173 @@
+{
+  "$schema": "https://safeflow.io/airtable-schema/v1",
+  "extracted_from": "schema.json",
+  "version": "1.0.0",
+  "table_id": "tblEscalations",
+  "name": "Escalations",
+  "description": "Records of job escalations including SLA breaches, contractor unavailability, and RFQ (Request for Quotes) escalations from internal engineers to property managers.",
+  "record_count_estimate": "Medium volume - roughly 10-20% of jobs may trigger escalations",
+  "primary_field": "escalation_id",
+  "fields": [
+    {
+      "field_id": "fldEscAutoId",
+      "name": "escalation_id",
+      "type": "autonumber",
+      "description": "Unique auto-incrementing identifier for each escalation"
+    },
+    {
+      "field_id": "fldEscWorkItemId",
+      "name": "work_item_id",
+      "type": "multipleRecordLinks",
+      "description": "Link to the work item being escalated",
+      "options": {
+        "linkedTableId": "tblWorkItems",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldEscType",
+      "name": "escalation_type",
+      "type": "singleSelect",
+      "description": "Type of escalation",
+      "options": {
+        "choices": [
+          { "name": "SLA_BREACH", "color": "redBright" },
+          { "name": "NO_CONTRACTOR", "color": "orangeBright" },
+          { "name": "DISPUTE", "color": "purpleBright" },
+          { "name": "RFQ", "color": "blueBright" },
+          { "name": "MANUAL", "color": "grayLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldEscReason",
+      "name": "reason",
+      "type": "multilineText",
+      "description": "Human-readable explanation of why the job was escalated"
+    },
+    {
+      "field_id": "fldEscTriggeredBy",
+      "name": "triggered_by",
+      "type": "singleSelect",
+      "description": "Who or what triggered the escalation",
+      "options": {
+        "choices": [
+          { "name": "system", "color": "blueLight2" },
+          { "name": "engineer", "color": "greenLight2" },
+          { "name": "contractor", "color": "yellowLight2" },
+          { "name": "manager", "color": "purpleLight2" },
+          { "name": "tenant", "color": "cyanLight2" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldEscAssignedManager",
+      "name": "assigned_manager_id",
+      "type": "multipleRecordLinks",
+      "description": "Property manager assigned to handle this escalation",
+      "options": {
+        "linkedTableId": "tblPeople",
+        "prefersSingleRecordLink": true
+      }
+    },
+    {
+      "field_id": "fldEscStatus",
+      "name": "status",
+      "type": "singleSelect",
+      "description": "Current status of the escalation",
+      "options": {
+        "choices": [
+          { "name": "OPEN", "color": "redLight2" },
+          { "name": "IN_REVIEW", "color": "yellowLight2" },
+          { "name": "RESOLVED", "color": "greenLight2" },
+          { "name": "CANCELLED", "color": "grayDark1" }
+        ]
+      }
+    },
+    {
+      "field_id": "fldEscResolution",
+      "name": "resolution",
+      "type": "multilineText",
+      "description": "How the escalation was resolved"
+    },
+    {
+      "field_id": "fldEscRFQReason",
+      "name": "rfq_reason",
+      "type": "multilineText",
+      "description": "For RFQ escalations: the internal engineer's reason for requesting external quotes (e.g. complexity, specialist tools needed, cost exceeds threshold)"
+    },
+    {
+      "field_id": "fldEscRFQQuotes",
+      "name": "rfq_quotes",
+      "type": "multipleAttachments",
+      "description": "For RFQ escalations: attached quote documents from external contractors"
+    },
+    {
+      "field_id": "fldEscCreatedAt",
+      "name": "created_at",
+      "type": "dateTime",
+      "description": "When the escalation was created",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    },
+    {
+      "field_id": "fldEscResolvedAt",
+      "name": "resolved_at",
+      "type": "dateTime",
+      "description": "When the escalation was resolved",
+      "options": {
+        "dateFormat": { "name": "european", "format": "DD/MM/YYYY" },
+        "timeFormat": { "name": "24hour", "format": "HH:mm" },
+        "timeZone": "Europe/London"
+      }
+    }
+  ],
+  "views": [
+    {
+      "name": "All Escalations",
+      "type": "grid",
+      "description": "All escalations sorted by most recent",
+      "fields": "all",
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    },
+    {
+      "name": "Open Escalations",
+      "type": "grid",
+      "description": "Currently unresolved escalations",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "status", "operator": "isAnyOf", "value": ["OPEN", "IN_REVIEW"] }
+        ]
+      },
+      "sort": [
+        { "field": "created_at", "direction": "asc" }
+      ]
+    },
+    {
+      "name": "RFQ Escalations",
+      "type": "grid",
+      "description": "RFQ-type escalations from internal engineers requesting external quotes",
+      "filter": {
+        "conjunction": "and",
+        "conditions": [
+          { "field": "escalation_type", "operator": "isEqual", "value": "RFQ" }
+        ]
+      },
+      "sort": [
+        { "field": "created_at", "direction": "desc" }
+      ]
+    }
+  ],
+  "relationships": {
+    "belongs_to": ["Work_Items", "People"]
+  },
+  "field_count": 12,
+  "formula_count": 0,
+  "link_count": 2
+}
